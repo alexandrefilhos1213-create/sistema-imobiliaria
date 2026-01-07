@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'config/api_config.dart';
 import 'theme/app_theme.dart';
 import 'screens/login_screen.dart';
 
@@ -9,6 +10,8 @@ Future<void> main() async {
   
   // Carrega as variáveis de ambiente do arquivo .env
   await dotenv.load(fileName: ".env");
+
+  await ApiConfig.initialize();
   
   runApp(const MaisVidaApp());
 }

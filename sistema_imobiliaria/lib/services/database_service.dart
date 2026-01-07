@@ -1,9 +1,8 @@
 import 'dart:convert';
 import 'dart:io';
 import 'dart:async';
-import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
-import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:sistema_imobiliaria/config/api_config.dart';
 import 'package:logger/logger.dart';
 
 class DatabaseService {
@@ -24,22 +23,7 @@ class DatabaseService {
     if (_initialized) return;
     
     try {
-      await dotenv.load(fileName: '.env');
-      final url = dotenv.env['API_BASE_URL'];
-      final defaultBaseUrl = kIsWeb
-          ? 'http://localhost:3000'
-          : (defaultTargetPlatform == TargetPlatform.android
-              ? 'http://10.0.2.2:3000'
-              : 'http://localhost:3000');
-      final baseUrlRaw = (url == null || url.isEmpty) ? defaultBaseUrl : url;
-      final baseUrlAndroidAdjusted = (!kIsWeb &&
-              defaultTargetPlatform == TargetPlatform.android &&
-              baseUrlRaw.contains('localhost'))
-          ? baseUrlRaw.replaceFirst('localhost', '10.0.2.2')
-          : baseUrlRaw;
-      _baseUrl = baseUrlAndroidAdjusted.endsWith('/')
-          ? baseUrlAndroidAdjusted.substring(0, baseUrlAndroidAdjusted.length - 1)
-          : baseUrlAndroidAdjusted;
+      _baseUrl = ApiConfig.baseUrl;
       _logger.i('DatabaseService inicializado com URL: $_baseUrl');
       _initialized = true;
     } catch (e, stackTrace) {

@@ -1,7 +1,8 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http/http.dart' as http;
+import 'package:sistema_imobiliaria/config/api_config.dart';
 import 'package:sistema_imobiliaria/theme/app_theme.dart';
 import 'package:sistema_imobiliaria/screens/user_hub_screen.dart';
 
@@ -60,28 +61,21 @@ class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin
     if (!_formKey.currentState!.validate()) return;
     setState(() => _loading = true);
     try {
-      final envBaseUrl = dotenv.env['API_BASE_URL'];
-      final defaultBaseUrl = kIsWeb
-          ? 'http://localhost:3000'
-          : (defaultTargetPlatform == TargetPlatform.android
-              ? 'http://10.0.2.2:3000'
-              : 'http://localhost:3000');
-      final baseUrlRaw = (envBaseUrl == null || envBaseUrl.isEmpty)
-          ? defaultBaseUrl
-          : envBaseUrl;
-      final baseUrl = (!kIsWeb &&
-              defaultTargetPlatform == TargetPlatform.android &&
-              baseUrlRaw.contains('localhost'))
-          ? baseUrlRaw.replaceFirst('localhost', '10.0.2.2')
-          : baseUrlRaw;
-      final uri = Uri.parse('$baseUrl/login');
+      final uri = ApiConfig.uri('/login');
+
+      final emailOrUser = _emailCtrl.text.trim();
+      final senha = _passCtrl.text.trim();
 
       final response = await http.post(
         uri,
         headers: {
           'Content-Type': 'application/json',
         },
-        body: '{"email": "${_emailCtrl.text.trim()}", "senha": "${_passCtrl.text}"}',
+        body: jsonEncode({
+          'email': emailOrUser,
+          'usuario': emailOrUser,
+          'senha': senha,
+        }),
       );
 
       if (!mounted) return;
@@ -97,8 +91,16 @@ class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin
           ),
         );
       } else {
+        String message = 'Falha no login';
+        try {
+          final decoded = jsonDecode(response.body);
+          if (decoded is Map && decoded['message'] is String) {
+            message = decoded['message'] as String;
+          }
+        } catch (_) {}
+
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Falha no login: código ${response.statusCode}')),
+          SnackBar(content: Text('$message (código ${response.statusCode})')),
         );
       }
     } catch (e) {
