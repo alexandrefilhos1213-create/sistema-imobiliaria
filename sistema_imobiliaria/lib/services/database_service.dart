@@ -15,7 +15,7 @@ class DatabaseService {
     ),
   );
   
-  static String _baseUrl = 'http://localhost:3000';
+  static String _baseUrl = '';
   static bool _initialized = false;
 
   // Inicializa o serviço
@@ -218,7 +218,7 @@ class DatabaseService {
   }
 
   // Adicionar Imóvel
-  static Future<void> addImovel(Map<String, dynamic> imovel) async {
+  static Future<Map<String, dynamic>> addImovel(Map<String, dynamic> imovel) async {
     if (!_initialized) await initialize();
     try {
       final response = await _makeRequest('POST', '/imoveis', body: imovel);
@@ -230,6 +230,11 @@ class DatabaseService {
       _imoveis.add(newImovel);
       
       _logger.i('Imóvel adicionado: ${imovel['endereco']}');
+      
+      return {
+        'success': true,
+        'data': response['data'],
+      };
     } catch (e) {
       // Fallback para modo local
       imovel['id'] = DateTime.now().millisecondsSinceEpoch.toString();
@@ -237,6 +242,11 @@ class DatabaseService {
       _imoveis.add(imovel);
       _logger.e('Erro ao adicionar imóvel; usando fallback local', error: e);
       _logger.i('Imóvel adicionado localmente: ${imovel['endereco']}');
+      
+      return {
+        'success': true,
+        'data': imovel,
+      };
     }
   }
 

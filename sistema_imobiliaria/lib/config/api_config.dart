@@ -24,8 +24,7 @@ class ApiConfig {
       return cached;
     }
 
-    // Fallback defensivo caso initialize() não tenha sido chamado.
-    // Não detecta emulador vs device físico (isso exige async).
+    // Fallback defensivo síncrono - prioridade absoluta para Web
     final definedBaseUrl = const String.fromEnvironment('API_BASE_URL');
     if (definedBaseUrl.trim().isNotEmpty) {
       return _normalize(definedBaseUrl);
@@ -33,23 +32,21 @@ class ApiConfig {
 
     final env = dotenv.env;
 
-    final platformBaseUrl = kIsWeb
-        ? (env['API_BASE_URL_WEB'] ?? env['API_BASE_URL'])
-        : (defaultTargetPlatform == TargetPlatform.android
-            ? (env['API_BASE_URL_ANDROID'] ?? env['API_BASE_URL'])
-            : env['API_BASE_URL']);
+    // Web tem prioridade absoluta
+    if (kIsWeb) {
+      return _normalize(env['API_BASE_URL_WEB'] ?? env['API_BASE_URL'] ?? _defaultWebBaseUrl);
+    }
 
-    final fallback = kIsWeb
-        ? _defaultWebBaseUrl
-        : (defaultTargetPlatform == TargetPlatform.android
-            ? _defaultAndroidEmulatorBaseUrl
-            : _defaultOtherBaseUrl);
+    // Android: assumir device físico por segurança (não podemos detectar async aqui)
+    if (defaultTargetPlatform == TargetPlatform.android) {
+      return _normalize(env['API_BASE_URL_ANDROID_DEVICE'] ?? 
+                       env['API_BASE_URL_ANDROID'] ?? 
+                       env['API_BASE_URL'] ?? 
+                       _defaultAndroidDeviceBaseUrl);
+    }
 
-    final resolved = (platformBaseUrl == null || platformBaseUrl.trim().isEmpty)
-        ? fallback
-        : platformBaseUrl.trim();
-
-    return _normalize(resolved);
+    // Outras plataformas
+    return _normalize(env['API_BASE_URL'] ?? _defaultOtherBaseUrl);
   }
 
   static Uri uri(String path) {
@@ -75,11 +72,16 @@ class ApiConfig {
 
     final env = dotenv.env;
 
+    // Web tem prioridade absoluta - ignora defaultTargetPlatform
     if (kIsWeb) {
       final base = env['API_BASE_URL_WEB'] ?? env['API_BASE_URL'] ?? _defaultWebBaseUrl;
+      print('DEBUG Web: env[API_BASE_URL_WEB] = ${env['API_BASE_URL_WEB']}');
+      print('DEBUG Web: env[API_BASE_URL] = ${env['API_BASE_URL']}');
+      print('DEBUG Web: base final = $base');
       return _normalize(base);
     }
 
+    // Só executa lógica Android se NÃO for Web
     if (defaultTargetPlatform == TargetPlatform.android) {
       final isPhysicalDevice = await _isPhysicalAndroidDevice();
 
@@ -96,6 +98,12 @@ class ApiConfig {
       final normalized = _normalize(baseRaw);
 
       // Só o emulador entende 10.0.2.2. Em device físico, NUNCA aplicar isso.
+      if (isPhysicalDevice &&
+          (normalized.contains('localhost') || normalized.contains('127.0.0.1'))) {
+        final forced = env['API_BASE_URL_ANDROID_DEVICE'] ?? _defaultAndroidDeviceBaseUrl;
+        return _normalize(forced);
+      }
+
       if (!isPhysicalDevice && normalized.contains('localhost')) {
         return normalized.replaceFirst('localhost', '10.0.2.2');
       }

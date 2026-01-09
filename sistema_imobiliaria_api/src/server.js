@@ -3,11 +3,56 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const { Pool } = require('pg');
+const multer = require('multer');
+const path = require('path');
+const fs = require('fs');
 
 const app = express();
 
-app.use(cors());
+// CORS permitido para todos os origins (temporário para debug)
+app.use(cors({
+  origin: '*',
+  credentials: true
+}));
 app.use(express.json());
+
+// Configurar pasta de uploads
+const uploadsDir = path.join(__dirname, '../uploads');
+if (!fs.existsSync(uploadsDir)) {
+  fs.mkdirSync(uploadsDir, { recursive: true });
+}
+
+// Configurar multer para upload de imagens
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, uploadsDir);
+  },
+  filename: (req, file, cb) => {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    cb(null, file.fieldname + '-' + uniqueSuffix + path.extname(file.originalname));
+  }
+});
+
+const upload = multer({
+  storage: storage,
+  limits: {
+    fileSize: 5 * 1024 * 1024, // 5MB por imagem
+  },
+  fileFilter: (req, file, cb) => {
+    const allowedTypes = /jpeg|jpg|png|gif|webp/;
+    const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
+    const mimetype = allowedTypes.test(file.mimetype);
+    
+    if (mimetype && extname) {
+      return cb(null, true);
+    } else {
+      cb(new Error('Apenas imagens são permitidas (JPEG, JPG, PNG, GIF, WebP)'));
+    }
+  }
+});
+
+// Servir arquivos estáticos da pasta uploads
+app.use('/uploads', express.static(uploadsDir));
 
 const {
   PORT = 3000,
@@ -47,7 +92,11 @@ if (DATABASE_URL) {
   };
 }
 
-const pool = new Pool(poolConfig);
+const pool = new Pool({
+  ...poolConfig,
+  charset: 'utf8',
+  clientEncoding: 'UTF8'
+});
 
 // Middleware de logging
 app.use((req, res, next) => {
@@ -496,7 +545,16 @@ app.get('/imoveis', async (req, res) => {
     const client = await pool.connect();
     try {
       const result = await client.query(`
-        SELECT i.*, l.nome as locador_nome, lt.nome as locatario_nome
+        SELECT 
+          i.*,
+          l.nome as locador_nome,
+          l.cpf as locador_cpf,
+          l.telefone as locador_telefone,
+          l.email as locador_email,
+          lt.nome as locatario_nome,
+          lt.cpf as locatario_cpf,
+          lt.telefone as locatario_telefone,
+          lt.email as locatario_email
         FROM imoveis i
         LEFT JOIN locadores l ON i.id_locador = l.id
         LEFT JOIN locatarios lt ON i.id_locatario = lt.id
@@ -666,11 +724,20 @@ app.get('/imoveis/:id', async (req, res) => {
     const client = await pool.connect();
     try {
       const result = await client.query(`
-        SELECT i.*, l.nome as locador_nome, lt.nome as locatario_nome
+        SELECT 
+          i.*,
+          l.nome as locador_nome,
+          l.cpf as locador_cpf,
+          l.telefone as locador_telefone,
+          l.email as locador_email,
+          lt.nome as locatario_nome,
+          lt.cpf as locatario_cpf,
+          lt.telefone as locatario_telefone,
+          lt.email as locatario_email
         FROM imoveis i
         LEFT JOIN locadores l ON i.id_locador = l.id
         LEFT JOIN locatarios lt ON i.id_locatario = lt.id
-        WHERE i.id = $1
+        WHERE i.id = ${id}
       `, [id]);
 
       if (result.rowCount === 0) {
@@ -742,8 +809,135 @@ app.use((req, res) => {
   });
 });
 
-app.listen(PORT, () => {
+// POST - Upload de imagens para um imóvel
+app.post('/imoveis/:id/imagens', upload.array('imagens', 20), async (req, res) => {
+  try {
+    const { id } = req.params;
+    const files = req.files;
+
+    if (!files || files.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Nenhuma imagem foi enviada',
+      });
+    }
+
+    const client = await pool.connect();
+    try {
+      const imagensSalvas = [];
+
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        const caminhoImagem = `/uploads/${file.filename}`;
+        
+        // A primeira imagem enviada será a principal
+        const principal = i === 0;
+        
+        const result = await client.query(`
+          INSERT INTO imoveis_imagens (id_imovel, caminho_imagem, principal, ordem)
+          VALUES ($1, $2, $3, $4)
+          RETURNING *
+        `, [id, caminhoImagem, principal, i]);
+
+        imagensSalvas.push(result.rows[0]);
+      }
+
+      res.json({
+        success: true,
+        message: `${files.length} imagens salvas com sucesso`,
+        data: imagensSalvas,
+      });
+    } finally {
+      client.release();
+    }
+  } catch (error) {
+    console.error('Erro ao fazer upload de imagens:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Erro ao salvar imagens',
+    });
+  }
+});
+
+// GET - Buscar imagens de um imóvel
+app.get('/imoveis/:id/imagens', async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const client = await pool.connect();
+    try {
+      const result = await client.query(`
+        SELECT * FROM imoveis_imagens 
+        WHERE id_imovel = $1 
+        ORDER BY ordem ASC, principal DESC, id ASC
+      `, [id]);
+
+      res.json({
+        success: true,
+        data: result.rows,
+      });
+    } finally {
+      client.release();
+    }
+  } catch (error) {
+    console.error('Erro ao buscar imagens:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Erro ao buscar imagens',
+    });
+  }
+});
+
+// DELETE - Remover uma imagem
+app.delete('/imoveis-imagens/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const client = await pool.connect();
+    try {
+      // Primeiro buscar o caminho da imagem para deletar o arquivo
+      const imagemResult = await client.query(
+        'SELECT caminho_imagem FROM imoveis_imagens WHERE id = $1',
+        [id]
+      );
+
+      if (imagemResult.rows.length === 0) {
+        return res.status(404).json({
+          success: false,
+          message: 'Imagem não encontrada',
+        });
+      }
+
+      const caminhoImagem = imagemResult.rows[0].caminho_imagem;
+      
+      // Deletar do banco
+      await client.query('DELETE FROM imoveis_imagens WHERE id = $1', [id]);
+
+      // Deletar arquivo do servidor (se existir)
+      const filePath = path.join(uploadsDir, path.basename(caminhoImagem));
+      if (fs.existsSync(filePath)) {
+        fs.unlinkSync(filePath);
+      }
+
+      res.json({
+        success: true,
+        message: 'Imagem removida com sucesso',
+      });
+    } finally {
+      client.release();
+    }
+  } catch (error) {
+    console.error('Erro ao remover imagem:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Erro ao remover imagem',
+    });
+  }
+});
+
+app.listen(PORT, '0.0.0.0', () => {
   console.log(`Servidor rodando na porta ${PORT}`);
   console.log(`Database: ${DATABASE_URL ? 'Neon (URL)' : `${DB_HOST}:${DB_PORT}/${DB_DATABASE}`}`);
+  console.log(`Acessível em: http://0.0.0.0:${PORT}`);
 });
 

@@ -43,6 +43,9 @@ dependencies:
   flutter_dotenv: ^5.1.0
   logger: ^2.6.2
   device_info_plus: ^11.0.0
+  
+  # Para selecionar imagens da galeria
+  image_picker: ^1.0.4
 
 dev_dependencies:
   flutter_test:

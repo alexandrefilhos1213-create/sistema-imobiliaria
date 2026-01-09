@@ -179,6 +179,7 @@ class _PremiumHomeScreenState extends State<PremiumHomeScreen>
                           '12 propriedades exclusivas',
                           Icons.home_outlined,
                           () => _navigateToProperties(),
+                          isFeatured: true,
                         ),
                         const SizedBox(height: 16),
                         _buildFeatureCard(
@@ -229,62 +230,101 @@ class _PremiumHomeScreenState extends State<PremiumHomeScreen>
     String title,
     String subtitle,
     IconData icon,
-    VoidCallback onTap,
-  ) {
+    VoidCallback onTap, {
+    bool isFeatured = false,
+  }) {
     return GestureDetector(
       onTap: onTap,
       child: AppTheme.glassContainer(
         borderRadius: 20,
-        opacity: 0.08,
-        child: Padding(
-          padding: const EdgeInsets.all(20),
-          child: Row(
-            children: [
-              Container(
-                width: 50,
-                height: 50,
-                decoration: BoxDecoration(
-                  gradient: AppTheme.roseGoldGradient,
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                child: Icon(
-                  icon,
-                  color: AppTheme.white,
-                  size: 24,
-                ),
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      title,
-                      style: const TextStyle(
-                        fontFamily: 'Montserrat',
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
-                        color: AppTheme.white,
+        opacity: isFeatured ? 0.12 : 0.08,
+        child: Container(
+          decoration: isFeatured
+              ? BoxDecoration(
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(
+                    color: AppTheme.roseGoldStart.withOpacity(0.3),
+                    width: 1,
+                  ),
+                )
+              : null,
+          child: Padding(
+            padding: EdgeInsets.all(isFeatured ? 24 : 20),
+            child: Row(
+              children: [
+                Container(
+                  width: isFeatured ? 56 : 50,
+                  height: isFeatured ? 56 : 50,
+                  decoration: BoxDecoration(
+                    gradient: isFeatured 
+                        ? LinearGradient(
+                            colors: [
+                              AppTheme.roseGoldStart,
+                              AppTheme.roseGoldEnd,
+                            ],
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                          )
+                        : AppTheme.roseGoldGradient,
+                    borderRadius: BorderRadius.circular(isFeatured ? 18 : 16),
+                    boxShadow: isFeatured ? [
+                      BoxShadow(
+                        color: AppTheme.roseGoldStart.withOpacity(0.3),
+                        blurRadius: 8,
+                        offset: const Offset(0, 4),
                       ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      subtitle,
-                      style: const TextStyle(
-                        fontFamily: 'Inter',
-                        fontSize: 12,
-                        color: AppTheme.bluishGray,
-                      ),
-                    ),
-                  ],
+                    ] : null,
+                  ),
+                  child: Icon(
+                    icon,
+                    color: AppTheme.white,
+                    size: isFeatured ? 26 : 24,
+                  ),
                 ),
-              ),
-              Icon(
-                Icons.arrow_forward_ios,
-                color: AppTheme.roseGoldStart,
-                size: 16,
-              ),
-            ],
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        title,
+                        style: TextStyle(
+                          fontFamily: 'Montserrat',
+                          fontSize: isFeatured ? 17 : 16,
+                          fontWeight: isFeatured ? FontWeight.w700 : FontWeight.w600,
+                          color: AppTheme.white,
+                          height: 1.2,
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        subtitle,
+                        style: TextStyle(
+                          fontFamily: 'Inter',
+                          fontSize: isFeatured ? 13 : 12,
+                          color: AppTheme.bluishGray.withOpacity(0.9),
+                          height: 1.3,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: isFeatured 
+                        ? AppTheme.roseGoldStart.withOpacity(0.1)
+                        : Colors.transparent,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Icon(
+                    Icons.arrow_forward_ios,
+                    color: AppTheme.roseGoldStart,
+                    size: isFeatured ? 18 : 16,
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),

@@ -13,7 +13,9 @@ class _AddLocatarioScreenState extends State<AddLocatarioScreen> {
   final _nameController = TextEditingController();
   final _cpfController = TextEditingController();
   final _rgController = TextEditingController();
+  final _estadoCivilController = TextEditingController();
   final _dataNascimentoController = TextEditingController();
+  final _cnhController = TextEditingController();
   final _emailController = TextEditingController();
   final _telefoneController = TextEditingController();
   final _enderecoController = TextEditingController();
@@ -29,7 +31,9 @@ class _AddLocatarioScreenState extends State<AddLocatarioScreen> {
     _nameController.dispose();
     _cpfController.dispose();
     _rgController.dispose();
+    _estadoCivilController.dispose();
     _dataNascimentoController.dispose();
+    _cnhController.dispose();
     _emailController.dispose();
     _telefoneController.dispose();
     _enderecoController.dispose();
@@ -356,16 +360,18 @@ class _AddLocatarioScreenState extends State<AddLocatarioScreen> {
                 'nome': _nameController.text,
                 'cpf': _cpfController.text,
                 'rg': _rgController.text,
-                'dataNascimento': _dataNascimentoController.text,
+                'estado_civil': _estadoCivilController.text,
+                'data_nascimento': _dataNascimentoController.text,
+                'cnh': _cnhController.text,
                 'email': _emailController.text,
                 'telefone': _telefoneController.text,
                 'endereco': _enderecoController.text,
                 'profissao': _profissaoController.text,
                 'renda': _rendaController.text,
                 'referencia': _referenciaController.text,
-                'referenciaComercial': _referenciaComercialController.text,
+                'referencia_comercial': _referenciaComercialController.text,
                 'fiador': _fiadorController.text,
-                'fiadorCpf': _fiadorCpfController.text,
+                'fiador_cpf': _fiadorCpfController.text,
               };
 
               try {

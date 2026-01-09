@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:sistema_imobiliaria/screens/locador_detail_screen.dart';
 import 'package:sistema_imobiliaria/screens/locatario_detail_screen.dart';
+import 'package:sistema_imobiliaria/screens/imovel_detail_screen.dart';
 import 'package:sistema_imobiliaria/screens/add_locador_screen.dart';
 import 'package:sistema_imobiliaria/screens/add_locatario_screen.dart';
 import 'package:sistema_imobiliaria/screens/add_imovel_screen.dart';
@@ -65,6 +67,39 @@ class _UserHubScreenState extends State<UserHubScreen>
       final imoveis = await DatabaseService.getImoveis();
       final stats = await DatabaseService.getStatistics();
       
+      debugPrint('=== DEBUG: Imóveis Carregados ===');
+      debugPrint('Total de imóveis: ${imoveis.length}');
+      
+      for (int i = 0; i < imoveis.length; i++) {
+        final imovel = imoveis[i];
+        debugPrint('--- Imóvel ${i + 1} (ID: ${imovel['id']}) ---');
+        debugPrint('Tipo: ${imovel['tipo']}');
+        debugPrint('Endereço: ${imovel['endereco']}');
+        debugPrint('Cadastro IPTU: ${imovel['cadastro_iptu']}');
+        debugPrint('Unidade Consumidora Número: ${imovel['unidade_consumidora_numero']}');
+        debugPrint('Unidade Consumidora Titular: ${imovel['unidade_consumidora_titular']}');
+        debugPrint('Unidade Consumidora CPF: ${imovel['unidade_consumidora_cpf']}');
+        debugPrint('Saneago Número: ${imovel['saneago_numero_conta']}');
+        debugPrint('Saneago Titular: ${imovel['saneago_titular']}');
+        debugPrint('Saneago CPF: ${imovel['saneago_cpf']}');
+        debugPrint('Gás Número: ${imovel['gas_numero_conta']}');
+        debugPrint('Gás Titular: ${imovel['gas_titular']}');
+        debugPrint('Gás CPF: ${imovel['gas_cpf']}');
+        debugPrint('Condomínio Titular: ${imovel['condominio_titular']}');
+        debugPrint('Condomínio Valor: ${imovel['condominio_valor_estimado']}');
+        debugPrint('Locador Nome: ${imovel['locador_nome']}');
+        debugPrint('Locador CPF: ${imovel['locador_cpf']}');
+        debugPrint('Locador Telefone: ${imovel['locador_telefone']}');
+        debugPrint('Locador Email: ${imovel['locador_email']}');
+        debugPrint('Locatário Nome: ${imovel['locatario_nome']}');
+        debugPrint('Locatário CPF: ${imovel['locatario_cpf']}');
+        debugPrint('Locatário Telefone: ${imovel['locatario_telefone']}');
+        debugPrint('Locatário Email: ${imovel['locatario_email']}');
+        debugPrint('--- FIM Imóvel ${i + 1} ---');
+      }
+      
+      debugPrint('=== FIM DEBUG IMÓVEIS ===');
+      
       setState(() {
         _locadores = locadores;
         _locatarios = locatarios;
@@ -79,6 +114,80 @@ class _UserHubScreenState extends State<UserHubScreen>
 
   void _refreshData() async {
     await _loadData();
+  }
+
+  // Método para corrigir encoding de caracteres especiais
+  String _fixEncoding(String text) {
+    if (text == null) return 'Sem dados';
+    
+    // Substituir caracteres corrompidos por caracteres corretos
+    return text
+        // Letras minúsculas com acento
+        .replaceAll('�', 'á')
+        .replaceAll('�', 'à')
+        .replaceAll('�', 'â')
+        .replaceAll('�', 'ã')
+        .replaceAll('�', 'ä')
+        .replaceAll('�', 'å')
+        .replaceAll('�', 'é')
+        .replaceAll('�', 'è')
+        .replaceAll('�', 'ê')
+        .replaceAll('�', 'ë')
+        .replaceAll('�', 'í')
+        .replaceAll('�', 'ì')
+        .replaceAll('�', 'î')
+        .replaceAll('�', 'ï')
+        .replaceAll('�', 'ó')
+        .replaceAll('�', 'ò')
+        .replaceAll('�', 'ô')
+        .replaceAll('�', 'õ')
+        .replaceAll('�', 'ö')
+        .replaceAll('�', 'ø')
+        .replaceAll('�', 'ú')
+        .replaceAll('�', 'ù')
+        .replaceAll('�', 'û')
+        .replaceAll('�', 'ü')
+        .replaceAll('�', 'ý')
+        .replaceAll('�', 'ÿ')
+        // Letras maiúsculas com acento
+        .replaceAll('�', 'Á')
+        .replaceAll('�', 'À')
+        .replaceAll('�', 'Â')
+        .replaceAll('�', 'Ã')
+        .replaceAll('�', 'Ä')
+        .replaceAll('�', 'Å')
+        .replaceAll('�', 'É')
+        .replaceAll('�', 'È')
+        .replaceAll('�', 'Ê')
+        .replaceAll('�', 'Ë')
+        .replaceAll('�', 'Í')
+        .replaceAll('�', 'Ì')
+        .replaceAll('�', 'Î')
+        .replaceAll('�', 'Ï')
+        .replaceAll('�', 'Ó')
+        .replaceAll('�', 'Ò')
+        .replaceAll('�', 'Ô')
+        .replaceAll('�', 'Õ')
+        .replaceAll('�', 'Ö')
+        .replaceAll('�', 'Ø')
+        .replaceAll('�', 'Ú')
+        .replaceAll('�', 'Ù')
+        .replaceAll('�', 'Û')
+        .replaceAll('�', 'Ü')
+        .replaceAll('�', 'Ý')
+        // Caracteres especiais
+        .replaceAll('�', 'ç')
+        .replaceAll('�', 'Ç')
+        .replaceAll('�', 'ñ')
+        .replaceAll('�', 'Ñ')
+        .replaceAll('�', 'ý')
+        // Combinações comuns
+        .replaceAll('Jo�o', 'João')
+        .replaceAll('S�o', 'São')
+        .replaceAll('�', 'ão')
+        .replaceAll('�', 'ões')
+        .replaceAll('�', 'ãe')
+        .replaceAll('�', 'ões');
   }
 
   void _changeTab(String tabName) {
@@ -96,6 +205,7 @@ class _UserHubScreenState extends State<UserHubScreen>
 
   @override
   Widget build(BuildContext context) {
+    debugPrint('Build UserHubScreen - Imóveis: ${_imoveis.length}'); // Debug simples
     return Scaffold(
       body: Container(
         decoration: const BoxDecoration(
@@ -381,6 +491,7 @@ class _UserHubScreenState extends State<UserHubScreen>
   }
 
   Widget _buildImoveisGrid() {
+    debugPrint('Total de imóveis: ${_imoveis.length}'); // Debug para verificar quantidade
     if (_imoveis.isEmpty) {
       return Center(
         child: Column(
@@ -415,27 +526,38 @@ class _UserHubScreenState extends State<UserHubScreen>
     }
 
     return GridView.builder(
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 2,
+      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: kIsWeb ? 3 : 2,
         crossAxisSpacing: 12,
         mainAxisSpacing: 12,
-        childAspectRatio: 1.2,
+        childAspectRatio: 1.3,
       ),
       itemCount: _imoveis.length,
       itemBuilder: (context, index) {
         final imovel = _imoveis[index];
-        return Container(
-          decoration: BoxDecoration(
-            color: const Color(0xFF4A5568),
-            borderRadius: BorderRadius.circular(12),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.1),
-                blurRadius: 8,
-                offset: const Offset(0, 2),
-              ),
-            ],
+        return GestureDetector(
+          onTap: () => Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => ImovelDetailScreen(imovel: imovel),
+            ),
           ),
+          child: Container(
+            decoration: BoxDecoration(
+              color: const Color(0xFF4A5568),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(
+                color: const Color(0xFF3B82F6).withOpacity(0.15),
+                width: 1,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: const Color(0xFF3B82F6).withOpacity(0.1),
+                  blurRadius: 6,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
           child: Padding(
             padding: const EdgeInsets.all(12),
             child: Column(
@@ -466,32 +588,43 @@ class _UserHubScreenState extends State<UserHubScreen>
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            imovel['tipo'] ?? 'Imóvel',
+                            'Tipo: ${_fixEncoding(imovel['tipo']?.toString() ?? 'Imóvel')}',
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: const TextStyle(
                               fontFamily: 'Inter',
                               fontSize: 14,
                               fontWeight: FontWeight.w600,
-                              color: Color(0xFFE2E8F0),
+                              color: Colors.white,
                             ),
                           ),
                           const SizedBox(height: 4),
                           Text(
-                            imovel['endereco'] ?? 'Endereço não informado',
+                            'End: ${_fixEncoding(imovel['endereco']?.toString() ?? 'Não informado')}',
                             maxLines: 2,
                             overflow: TextOverflow.ellipsis,
                             style: const TextStyle(
                               fontFamily: 'Inter',
                               fontSize: 11,
-                              color: Color(0xFF9CA3AF),
+                              color: Colors.white70,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            'Loc: ${_fixEncoding(imovel['locador_nome']?.toString() ?? 'Sem locador')}',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontFamily: 'Inter',
+                              fontSize: 10,
+                              color: Colors.blue,
                             ),
                           ),
                         ],
                       ),
                       if (imovel['descricao'] != null && imovel['descricao'].toString().isNotEmpty)
                         Text(
-                          imovel['descricao'],
+                          _fixEncoding(imovel['descricao']),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: const TextStyle(
@@ -506,7 +639,8 @@ class _UserHubScreenState extends State<UserHubScreen>
               ],
             ),
           ),
-        );
+        ),  // <- Fecha o GestureDetector
+      );
       },
     );
   }
@@ -574,7 +708,7 @@ class _UserHubScreenState extends State<UserHubScreen>
               child: const Icon(Icons.person_outline, color: Color(0xFF10B981), size: 20),
             ),
             title: Text(
-              locador['name'] ?? locador['nome'] ?? 'Nome não informado',
+              _fixEncoding(locador['name'] ?? locador['nome'] ?? 'Nome não informado'),
               style: const TextStyle(
                 fontFamily: 'Inter',
                 fontSize: 14,
@@ -672,7 +806,7 @@ class _UserHubScreenState extends State<UserHubScreen>
               child: const Icon(Icons.person_outline, color: Color(0xFFF59E0B), size: 20),
             ),
             title: Text(
-              locatario['name'] ?? locatario['nome'] ?? 'Nome não informado',
+              _fixEncoding(locatario['name'] ?? locatario['nome'] ?? 'Nome não informado'),
               style: const TextStyle(
                 fontFamily: 'Inter',
                 fontSize: 14,

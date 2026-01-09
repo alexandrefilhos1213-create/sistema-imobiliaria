@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'config/api_config.dart';
+import 'services/database_service.dart';
 import 'theme/app_theme.dart';
 import 'screens/login_screen.dart';
 
@@ -12,6 +13,7 @@ Future<void> main() async {
   await dotenv.load(fileName: ".env");
 
   await ApiConfig.initialize();
+  await DatabaseService.initialize();
   
   runApp(const MaisVidaApp());
 }
