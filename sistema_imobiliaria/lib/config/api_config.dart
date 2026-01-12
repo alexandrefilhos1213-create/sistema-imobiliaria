@@ -3,10 +3,10 @@ import 'package:device_info_plus/device_info_plus.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 class ApiConfig {
-  static const String _defaultWebBaseUrl = 'http://localhost:3000';
-  static const String _defaultAndroidEmulatorBaseUrl = 'http://10.0.2.2:3000';
-  static const String _defaultAndroidDeviceBaseUrl = 'http://192.168.100.204:3000';
-  static const String _defaultOtherBaseUrl = 'http://localhost:3000';
+  static const String _defaultWebBaseUrl = 'https://sistema-imobiliaria.onrender.com';
+  static const String _defaultAndroidEmulatorBaseUrl = 'https://sistema-imobiliaria.onrender.com';
+  static const String _defaultAndroidDeviceBaseUrl = 'https://sistema-imobiliaria.onrender.com';
+  static const String _defaultOtherBaseUrl = 'https://sistema-imobiliaria.onrender.com';
 
   static String? _resolvedBaseUrl;
 

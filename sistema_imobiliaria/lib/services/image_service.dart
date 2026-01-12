@@ -2,9 +2,10 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:http/http.dart' as http;
 import 'package:flutter/foundation.dart';
+import '../config/api_config.dart';
 
 class ImageService {
-  static const String baseUrl = 'http://localhost:3000';
+  static String get baseUrl => ApiConfig.baseUrl;
 
   // Fazer upload de múltiplas imagens para um imóvel
   static Future<Map<String, dynamic>> uploadImagens(int idImovel, List<File> imagens) async {
