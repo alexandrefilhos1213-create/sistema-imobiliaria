@@ -167,6 +167,9 @@ class _AddLocatarioScreenState extends State<AddLocatarioScreen> {
                                 if (value == null || value.isEmpty) {
                                   return 'Por favor, informe o CPF';
                                 }
+                                if (value.length > 14) {
+                                  return 'CPF deve ter no máximo 14 caracteres';
+                                }
                                 return null;
                               },
                             ),
@@ -389,12 +392,19 @@ class _AddLocatarioScreenState extends State<AddLocatarioScreen> {
                 // Voltar para a tela anterior
                 Navigator.pop(context);
               } catch (e) {
-                // Mostrar mensagem de erro
+                // Mostrar mensagem de erro específica
+                String errorMessage = 'Erro ao salvar locatário!';
+                
+                if (e.toString().contains('duplicate_cpf') || 
+                    e.toString().contains('CPF já cadastrado')) {
+                  errorMessage = 'CPF já cadastrado no sistema!';
+                }
+                
                 ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Erro ao salvar locatário!'),
+                  SnackBar(
+                    content: Text(errorMessage),
                     backgroundColor: Colors.red,
-                    duration: Duration(seconds: 2),
+                    duration: Duration(seconds: 3),
                   ),
                 );
               }

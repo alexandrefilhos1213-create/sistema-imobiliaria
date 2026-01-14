@@ -1,9 +1,19 @@
 import 'package:flutter/material.dart';
+import 'package:sistema_imobiliaria/services/database_service.dart';
+import 'package:sistema_imobiliaria/screens/user_hub_screen.dart';
 
-class LocadorDetailScreen extends StatelessWidget {
+class LocadorDetailScreen extends StatefulWidget {
   final Map<String, dynamic> locador;
 
   const LocadorDetailScreen({super.key, required this.locador});
+
+  @override
+  State<LocadorDetailScreen> createState() => _LocadorDetailScreenState();
+}
+
+class _LocadorDetailScreenState extends State<LocadorDetailScreen> {
+  // Getter para acessar o locador do widget
+  Map<String, dynamic> get locador => widget.locador;
 
   // Método para corrigir encoding de caracteres especiais
   String _fixEncoding(String text) {
@@ -153,6 +163,20 @@ class LocadorDetailScreen extends StatelessWidget {
                             ),
                           ),
                         ],
+                      ),
+                    ),
+                    const Spacer(),
+                    Container(
+                      decoration: BoxDecoration(
+                        color: Colors.red.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: Colors.red.withOpacity(0.3)),
+                      ),
+                      child: IconButton(
+                        onPressed: () => _showDeleteConfirmation(),
+                        icon: const Icon(Icons.delete_forever, color: Colors.red, size: 24),
+                        tooltip: 'Excluir Locador',
+                        padding: const EdgeInsets.all(12),
                       ),
                     ),
                   ],
@@ -322,6 +346,126 @@ class LocadorDetailScreen extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+
+  void _showDeleteConfirmation() {
+    // Verificar se o ID do locador é válido antes de prosseguir
+    if (locador['id'] == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('ID do locador inválido. Não é possível excluir.'),
+          backgroundColor: Colors.red,
+          duration: Duration(seconds: 3),
+        ),
+      );
+      return;
+    }
+
+    showDialog(
+      context: context,
+      builder: (BuildContext dialogContext) {
+        return AlertDialog(
+          title: const Text('Confirmar Exclusão'),
+          content: Text(
+            'Tem certeza que deseja excluir o locador "${_formatValue(locador['nome'])}" (ID: ${locador['id']})?\n\nEsta ação não pode ser desfeita.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: const Text('Cancelar'),
+            ),
+            TextButton(
+              onPressed: () async {
+                Navigator.of(dialogContext).pop(); // Fecha o dialog
+                
+                // Salvar context antes da operação assíncrona
+                final scaffoldContext = context;
+                
+                try {
+                  // Mostrar loading
+                  ScaffoldMessenger.of(scaffoldContext).showSnackBar(
+                    const SnackBar(
+                      content: Row(
+                        children: [
+                          CircularProgressIndicator(color: Colors.white),
+                          SizedBox(width: 16),
+                          Text('Excluindo locador...'),
+                        ],
+                      ),
+                      backgroundColor: Colors.orange,
+                      duration: Duration(seconds: 2),
+                    ),
+                  );
+
+                  // Excluir locador
+                  await DatabaseService.deleteLocador(locador['id']);
+
+                  // Verificar se o widget ainda está montado antes de usar context
+                  if (mounted) {
+                    // Forçar recarga da lista na UserHubScreen
+                    UserHubScreen.refreshData();
+                    
+                    // Fechar tela de detalhes
+                    Navigator.of(scaffoldContext).pop();
+
+                    // Mostrar sucesso
+                    ScaffoldMessenger.of(scaffoldContext).showSnackBar(
+                      const SnackBar(
+                        content: Text('Locador excluído com sucesso!'),
+                        backgroundColor: Colors.green,
+                        duration: Duration(seconds: 2),
+                      ),
+                    );
+                  }
+                } catch (e) {
+                  // Verificar se o widget ainda está montado antes de usar context
+                  if (mounted) {
+                    // Verificar se é erro 404 (não encontrado)
+                    String errorMessage = e.toString();
+                    String userMessage = 'Erro ao excluir locador';
+                    
+                    if (errorMessage.contains('404') || errorMessage.contains('não encontrado')) {
+                      userMessage = 'Locador não encontrado. Pode já ter sido excluído por outro usuário.';
+                    } else if (errorMessage.contains('connection') || errorMessage.contains('conexão')) {
+                      userMessage = 'Sem conexão com o servidor. Verifique sua internet.';
+                    }
+                    
+                    // Mostrar erro
+                    ScaffoldMessenger.of(scaffoldContext).showSnackBar(
+                      SnackBar(
+                        content: Text(userMessage),
+                        backgroundColor: Colors.red,
+                        duration: Duration(seconds: 4),
+                        action: SnackBarAction(
+                          label: 'Fechar',
+                          textColor: Colors.white,
+                          onPressed: () {
+                            ScaffoldMessenger.of(scaffoldContext).hideCurrentSnackBar();
+                          },
+                        ),
+                      ),
+                    );
+                    
+                    // Se for 404, fechar a tela de detalhes pois o registro não existe mais
+                    if (errorMessage.contains('404') || errorMessage.contains('não encontrado')) {
+                      Future.delayed(Duration(seconds: 2), () {
+                        if (mounted) {
+                          Navigator.of(scaffoldContext).pop();
+                        }
+                      });
+                    }
+                  }
+                }
+              },
+              child: const Text(
+                'Excluir',
+                style: TextStyle(color: Colors.red),
+              ),
+            ),
+          ],
+        );
+      },
     );
   }
 }

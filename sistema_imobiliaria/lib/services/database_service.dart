@@ -404,35 +404,28 @@ class DatabaseService {
     }
   }
 
-  // Excluir locador
-  static Future<void> deleteLocador(String id) async {
+  // Excluir Locatário (versão nova com int)
+  static Future<void> deleteLocatario(int id) async {
+    if (!_initialized) await initialize();
+    
     try {
-      await _makeRequest('DELETE', '/locadores/$id');
+      _logger.d('Tentando excluir locatário ID: $id');
+      final response = await _makeRequest('DELETE', '/locatarios/$id');
       
-      // Remover do cache local
-      _locadores.removeWhere((locador) => locador['id'] == id);
-      
-      _logger.i('Locador excluído: $id');
+      if (response['success']) {
+        _logger.i('Locatário excluído com sucesso: ID $id');
+        // Remover do cache local
+        _locatarios.removeWhere((locatario) => locatario['id'] == id);
+        
+        // Limpar cache completamente para forçar recarga do servidor
+        _locatarios.clear();
+        _logger.d('Cache de locatários limpo para forçar recarga');
+      } else {
+        throw Exception(response['message'] ?? 'Erro ao excluir locatário');
+      }
     } catch (e) {
-      // Fallback para modo local
-      _locadores.removeWhere((locador) => locador['id'] == id);
-      _logger.w('Locador excluído localmente: $id', error: e);
-    }
-  }
-
-  // Excluir locatário
-  static Future<void> deleteLocatario(String id) async {
-    try {
-      await _makeRequest('DELETE', '/locatarios/$id');
-      
-      // Remover do cache local
-      _locatarios.removeWhere((locatario) => locatario['id'] == id);
-      
-      _logger.i('Locatário excluído: $id');
-    } catch (e) {
-      // Fallback para modo local
-      _locatarios.removeWhere((locatario) => locatario['id'] == id);
-      _logger.w('Locatário excluído localmente: $id', error: e);
+      _logger.e('Erro ao excluir locatário', error: e);
+      rethrow;
     }
   }
 
@@ -506,5 +499,55 @@ class DatabaseService {
     _locadores.clear();
     _locatarios.clear();
     _logger.i('Dados locais limpos');
+  }
+
+  // Excluir Imóvel
+  static Future<void> deleteImovel(int id) async {
+    if (!_initialized) await initialize();
+    
+    try {
+      _logger.d('Tentando excluir imóvel ID: $id');
+      final response = await _makeRequest('DELETE', '/imoveis/$id');
+      
+      if (response['success']) {
+        _logger.i('Imóvel excluído com sucesso: ID $id');
+        // Remover do cache local
+        _imoveis.removeWhere((imovel) => imovel['id'] == id);
+        
+        // Limpar cache completamente para forçar recarga do servidor
+        _imoveis.clear();
+        _logger.d('Cache de imóveis limpo para forçar recarga');
+      } else {
+        throw Exception(response['message'] ?? 'Erro ao excluir imóvel');
+      }
+    } catch (e) {
+      _logger.e('Erro ao excluir imóvel', error: e);
+      rethrow;
+    }
+  }
+
+  // Excluir Locador
+  static Future<void> deleteLocador(int id) async {
+    if (!_initialized) await initialize();
+    
+    try {
+      _logger.d('Tentando excluir locador ID: $id');
+      final response = await _makeRequest('DELETE', '/locadores/$id');
+      
+      if (response['success']) {
+        _logger.i('Locador excluído com sucesso: ID $id');
+        // Remover do cache local
+        _locadores.removeWhere((locador) => locador['id'] == id);
+        
+        // Limpar cache completamente para forçar recarga do servidor
+        _locadores.clear();
+        _logger.d('Cache de locadores limpo para forçar recarga');
+      } else {
+        throw Exception(response['message'] ?? 'Erro ao excluir locador');
+      }
+    } catch (e) {
+      _logger.e('Erro ao excluir locador', error: e);
+      rethrow;
+    }
   }
 }

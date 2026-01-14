@@ -13,6 +13,7 @@ class _AddLocadorScreenState extends State<AddLocadorScreen> {
   final _nameController = TextEditingController();
   final _cpfController = TextEditingController();
   final _rgController = TextEditingController();
+  final _estadoCivilController = TextEditingController();
   final _dataNascimentoController = TextEditingController();
   final _profissaoController = TextEditingController();
   final _rendaController = TextEditingController();
@@ -27,6 +28,7 @@ class _AddLocadorScreenState extends State<AddLocadorScreen> {
     _nameController.dispose();
     _cpfController.dispose();
     _rgController.dispose();
+    _estadoCivilController.dispose();
     _dataNascimentoController.dispose();
     _profissaoController.dispose();
     _rendaController.dispose();
@@ -159,6 +161,9 @@ class _AddLocadorScreenState extends State<AddLocadorScreen> {
                                 if (value == null || value.isEmpty) {
                                   return 'Por favor, informe o CPF';
                                 }
+                                if (value.length > 14) {
+                                  return 'CPF deve ter no máximo 14 caracteres';
+                                }
                                 return null;
                               },
                             ),
@@ -207,6 +212,22 @@ class _AddLocadorScreenState extends State<AddLocadorScreen> {
                               controller: _rgController,
                               label: 'RG',
                               hint: 'MG-12.345.678',
+                            ),
+                            const SizedBox(height: 16),
+                            Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Text(
+                                  'Estado Civil',
+                                  style: TextStyle(
+                                    color: Color(0xFF10B981),
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                                const SizedBox(height: 8),
+                                _buildEstadoCivilDropdown(),
+                              ],
                             ),
                             const SizedBox(height: 16),
                             _buildTextField(
@@ -309,6 +330,53 @@ class _AddLocadorScreenState extends State<AddLocadorScreen> {
     );
   }
 
+  Widget _buildEstadoCivilDropdown() {
+    final estadosCivis = [
+      'Solteiro(a)',
+      'Casado(a)',
+      'Divorciado(a)',
+      'Viúvo(a)',
+      'Separado(a)',
+      'União Estável'
+    ];
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      decoration: BoxDecoration(
+        border: Border.all(color: const Color(0xFF4A5568), width: 1),
+        borderRadius: BorderRadius.circular(12),
+        color: const Color(0xFF2D3142),
+      ),
+      child: DropdownButtonHideUnderline(
+        child: DropdownButton<String>(
+          value: _estadoCivilController.text.isEmpty ? null : _estadoCivilController.text,
+          hint: const Text(
+            'Selecione o estado civil',
+            style: TextStyle(color: Color(0xFF6B7280)),
+          ),
+          dropdownColor: const Color(0xFF2D3142),
+          style: const TextStyle(color: Color(0xFFE2E8F0)),
+          icon: const Icon(
+            Icons.arrow_drop_down,
+            color: Color(0xFF9CA3AF),
+          ),
+          isExpanded: true,
+          items: estadosCivis.map((String estado) {
+            return DropdownMenuItem<String>(
+              value: estado,
+              child: Text(estado),
+            );
+          }).toList(),
+          onChanged: (String? newValue) {
+            setState(() {
+              _estadoCivilController.text = newValue ?? '';
+            });
+          },
+        ),
+      ),
+    );
+  }
+
   Widget _buildSaveButton() {
     return Container(
       width: double.infinity,
@@ -333,6 +401,7 @@ class _AddLocadorScreenState extends State<AddLocadorScreen> {
                 'nome': _nameController.text,
                 'cpf': _cpfController.text,
                 'rg': _rgController.text,
+                'estado_civil': _estadoCivilController.text,
                 'dataNascimento': _dataNascimentoController.text,
                 'profissao': _profissaoController.text,
                 'renda': _rendaController.text,
@@ -358,12 +427,19 @@ class _AddLocadorScreenState extends State<AddLocadorScreen> {
                 // Voltar para a tela anterior
                 Navigator.pop(context);
               } catch (e) {
-                // Mostrar mensagem de erro
+                // Mostrar mensagem de erro específica
+                String errorMessage = 'Erro ao salvar locador!';
+                
+                if (e.toString().contains('duplicate_cpf') || 
+                    e.toString().contains('CPF já cadastrado')) {
+                  errorMessage = 'CPF já cadastrado no sistema!';
+                }
+                
                 ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Erro ao salvar locador!'),
+                  SnackBar(
+                    content: Text(errorMessage),
                     backgroundColor: Colors.red,
-                    duration: Duration(seconds: 2),
+                    duration: Duration(seconds: 3),
                   ),
                 );
               }

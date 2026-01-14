@@ -94,8 +94,10 @@ if (DATABASE_URL) {
 
 const pool = new Pool({
   ...poolConfig,
-  charset: 'utf8',
-  clientEncoding: 'UTF8'
+  charset: 'utf8mb4',
+  clientEncoding: 'UTF8',
+  encoding: 'utf8',
+  application_name: 'sistema_imobiliaria_api'
 });
 
 // Middleware de logging
@@ -103,6 +105,44 @@ app.use((req, res, next) => {
   console.log(`${new Date().toISOString()} - ${req.method} ${req.path}`);
   next();
 });
+
+// Middleware para forçar UTF-8
+app.use((req, res, next) => {
+  res.setHeader('Content-Type', 'application/json; charset=utf-8');
+  next();
+});
+
+// Função para corrigir encoding UTF-8
+function fixUTF8Encoding(text) {
+  if (!text) return text;
+  
+  // Converter buffer para string com encoding correto
+  const buffer = Buffer.from(text, 'latin1');
+  return buffer.toString('utf8');
+}
+
+// Função para corrigir encoding em objetos
+function fixObjectEncoding(obj) {
+  if (!obj) return obj;
+  
+  if (typeof obj === 'string') {
+    return fixUTF8Encoding(obj);
+  }
+  
+  if (Array.isArray(obj)) {
+    return obj.map(item => fixObjectEncoding(item));
+  }
+  
+  if (typeof obj === 'object') {
+    const fixed = {};
+    for (const [key, value] of Object.entries(obj)) {
+      fixed[key] = fixObjectEncoding(value);
+    }
+    return fixed;
+  }
+  
+  return obj;
+}
 
 app.get('/', (req, res) => {
   res.json({ status: 'ok', message: 'API sistema_imobiliaria_api rodando' });
@@ -178,7 +218,7 @@ app.get('/locadores', async (req, res) => {
       const result = await client.query('SELECT * FROM locadores ORDER BY nome');
       res.json({
         success: true,
-        data: result.rows,
+        data: fixObjectEncoding(result.rows),
       });
     } finally {
       client.release();
@@ -223,6 +263,14 @@ app.post('/locadores', async (req, res) => {
       });
     }
 
+    if (cpf.length > 14) {
+      console.log('ERRO: CPF muito longo', { cpf, length: cpf.length });
+      return res.status(400).json({
+        success: false,
+        message: 'CPF deve ter no máximo 14 caracteres',
+      });
+    }
+
     const client = await pool.connect();
     try {
       const result = await client.query(
@@ -250,6 +298,16 @@ app.post('/locadores', async (req, res) => {
     console.log('Mensagem:', error.message);
     console.log('Stack:', error.stack);
     console.log('=== FIM ERRO ===');
+    
+    // Tratar CPF duplicado
+    if (error.code === '23505' && error.constraint === 'locadores_cpf_key') {
+      console.log('ERRO: CPF duplicado detectado');
+      return res.status(400).json({
+        success: false,
+        message: 'CPF já cadastrado no sistema',
+        error: 'duplicate_cpf'
+      });
+    }
     
     console.error('Erro ao criar locador:', error);
     res.status(500).json({
@@ -299,27 +357,54 @@ app.put('/locadores/:id', async (req, res) => {
 app.delete('/locadores/:id', async (req, res) => {
   try {
     const { id } = req.params;
+    console.log('=== DEBUG: Excluindo locador ===');
+    console.log('ID recebido:', id);
+    console.log('Tipo do ID:', typeof id);
 
     const client = await pool.connect();
     try {
-      const result = await client.query('DELETE FROM locadores WHERE id = $1', [id]);
-
-      if (result.rowCount === 0) {
+      // Primeiro verificar se o locador existe
+      console.log('Verificando se locador ID:', id, 'existe...');
+      const checkResult = await client.query('SELECT id, nome FROM locadores WHERE id = $1', [id]);
+      console.log('Resultado da consulta:', checkResult.rowCount, 'registros encontrados');
+      
+      if (checkResult.rowCount === 0) {
+        console.log('Locador não encontrado - ID:', id);
         return res.status(404).json({
           success: false,
           message: 'Locador não encontrado',
         });
       }
 
+      console.log('Locador encontrado:', checkResult.rows[0]);
+      
+      // Excluir locador
+      const result = await client.query('DELETE FROM locadores WHERE id = $1', [id]);
+      console.log('Resultado da exclusão:', result.rowCount, 'registros afetados');
+
+      if (result.rowCount === 0) {
+        console.log('Nenhum registro foi excluído - ID:', id);
+        return res.status(404).json({
+          success: false,
+          message: 'Locador não encontrado',
+        });
+      }
+
+      console.log('Locador excluído com sucesso - ID:', id);
       res.json({
         success: true,
         message: 'Locador excluído com sucesso',
+        data: {
+          id: id,
+          nome: checkResult.rows[0].nome
+        }
       });
     } finally {
       client.release();
     }
   } catch (error) {
     console.error('Erro ao excluir locador:', error);
+    console.error('Stack:', error.stack);
     res.status(500).json({
       success: false,
       message: 'Erro ao excluir locador',
@@ -408,6 +493,14 @@ app.post('/locatarios', async (req, res) => {
       });
     }
 
+    if (cpf.length > 14) {
+      console.log('ERRO: CPF muito longo (locatário)', { cpf, length: cpf.length });
+      return res.status(400).json({
+        success: false,
+        message: 'CPF deve ter no máximo 14 caracteres',
+      });
+    }
+
     const client = await pool.connect();
     try {
       const result = await client.query(
@@ -432,6 +525,17 @@ app.post('/locatarios', async (req, res) => {
     }
   } catch (error) {
     console.error('Erro ao criar locatário:', error);
+    
+    // Tratar CPF duplicado
+    if (error.code === '23505' && error.constraint === 'locatarios_cpf_key') {
+      console.log('ERRO: CPF duplicado detectado (locatário)');
+      return res.status(400).json({
+        success: false,
+        message: 'CPF já cadastrado no sistema',
+        error: 'duplicate_cpf'
+      });
+    }
+    
     res.status(500).json({
       success: false,
       message: 'Erro ao criar locatário',
@@ -562,7 +666,7 @@ app.get('/imoveis', async (req, res) => {
       `);
       res.json({
         success: true,
-        data: result.rows,
+        data: fixObjectEncoding(result.rows),
       });
     } finally {
       client.release();
@@ -749,7 +853,7 @@ app.get('/imoveis/:id', async (req, res) => {
 
       res.json({
         success: true,
-        data: result.rows[0],
+        data: fixObjectEncoding(result.rows[0]),
       });
     } finally {
       client.release();
@@ -759,6 +863,50 @@ app.get('/imoveis/:id', async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Erro ao obter imóvel',
+    });
+  }
+});
+
+// DELETE - Excluir imóvel
+app.delete('/imoveis/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    console.log('=== DEBUG: Excluindo imóvel ===');
+    console.log('ID do imóvel:', id);
+
+    const client = await pool.connect();
+    try {
+      // Verificar se imóvel existe
+      const checkResult = await client.query('SELECT id FROM imoveis WHERE id = $1', [id]);
+      
+      if (checkResult.rowCount === 0) {
+        return res.status(404).json({
+          success: false,
+          message: 'Imóvel não encontrado',
+        });
+      }
+
+      // Excluir imagens do imóvel primeiro (se existir)
+      await client.query('DELETE FROM imoveis_imagens WHERE id_imovel = $1', [id]);
+      
+      // Excluir imóvel
+      const result = await client.query('DELETE FROM imoveis WHERE id = $1 RETURNING *', [id]);
+
+      console.log('Imóvel excluído com sucesso:', result.rows[0]);
+      
+      res.json({
+        success: true,
+        message: 'Imóvel excluído com sucesso',
+        data: result.rows[0],
+      });
+    } finally {
+      client.release();
+    }
+  } catch (error) {
+    console.error('Erro ao excluir imóvel:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Erro ao excluir imóvel',
     });
   }
 });

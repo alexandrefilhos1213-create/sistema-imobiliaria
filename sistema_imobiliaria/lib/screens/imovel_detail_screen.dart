@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:sistema_imobiliaria/services/database_service.dart';
 import 'package:sistema_imobiliaria/services/image_service.dart';
+import 'package:sistema_imobiliaria/screens/user_hub_screen.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
@@ -436,6 +437,20 @@ class _ImovelDetailScreenState extends State<ImovelDetailScreen> {
                         fontSize: 20,
                         fontWeight: FontWeight.w600,
                         color: Colors.white,
+                      ),
+                    ),
+                    const Spacer(),
+                    Container(
+                      decoration: BoxDecoration(
+                        color: Colors.red.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: Colors.red.withOpacity(0.3)),
+                      ),
+                      child: IconButton(
+                        onPressed: () => _showDeleteConfirmation(),
+                        icon: const Icon(Icons.delete_forever, color: Colors.red, size: 24),
+                        tooltip: 'Excluir Imóvel',
+                        padding: const EdgeInsets.all(12),
                       ),
                     ),
                   ],
@@ -1013,6 +1028,88 @@ class _ImovelDetailScreenState extends State<ImovelDetailScreen> {
           ),
         ],
       ),
+    );
+  }
+
+  void _showDeleteConfirmation() {
+    showDialog(
+      context: context,
+      builder: (BuildContext dialogContext) {
+        return AlertDialog(
+          title: const Text('Confirmar Exclusão'),
+          content: Text(
+            'Tem certeza que deseja excluir o imóvel "${imovel['tipo']}" localizado em "${imovel['endereco']}"?\n\nEsta ação não pode ser desfeita.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: const Text('Cancelar'),
+            ),
+            TextButton(
+              onPressed: () async {
+                Navigator.of(dialogContext).pop(); // Fecha o dialog
+                
+                // Salvar context antes da operação assíncrona
+                final scaffoldContext = context;
+                
+                try {
+                  // Mostrar loading
+                  ScaffoldMessenger.of(scaffoldContext).showSnackBar(
+                    const SnackBar(
+                      content: Row(
+                        children: [
+                          CircularProgressIndicator(color: Colors.white),
+                          SizedBox(width: 16),
+                          Text('Excluindo imóvel...'),
+                        ],
+                      ),
+                      backgroundColor: Colors.orange,
+                      duration: Duration(seconds: 2),
+                    ),
+                  );
+
+                  // Excluir imóvel
+                  await DatabaseService.deleteImovel(imovel['id']);
+
+                  // Verificar se o widget ainda está montado antes de usar context
+                  if (mounted) {
+                    // Forçar recarga da lista na UserHubScreen
+                    UserHubScreen.refreshData();
+                    
+                    // Fechar tela de detalhes
+                    Navigator.of(scaffoldContext).pop();
+
+                    // Mostrar sucesso
+                    ScaffoldMessenger.of(scaffoldContext).showSnackBar(
+                      const SnackBar(
+                        content: Text('Imóvel excluído com sucesso!'),
+                        backgroundColor: Colors.green,
+                        duration: Duration(seconds: 2),
+                      ),
+                    );
+                  }
+                } catch (e) {
+                  // Verificar se o widget ainda está montado antes de usar context
+                  if (mounted) {
+                    // Mostrar erro
+                    ScaffoldMessenger.of(scaffoldContext).showSnackBar(
+                      SnackBar(
+                        content: Text('Erro ao excluir imóvel: ${e.toString()}'),
+                        backgroundColor: Colors.red,
+                        duration: Duration(seconds: 3),
+                      ),
+                    );
+                  }
+                }
+              },
+              child: const Text(
+                'Excluir',
+                style: TextStyle(color: Colors.red),
+              ),
+            ),
+          ],
+        );
+      },
     );
   }
 }
