@@ -139,9 +139,9 @@ if (DATABASE_URL) {
   // Usa URL completa (como Neon) se estiver disponível
   poolConfig = {
     connectionString: DATABASE_URL,
-    ssl: {
+    ssl: process.env.NODE_ENV === 'production' ? {
       rejectUnauthorized: false,
-    },
+    } : false, // Desabilitar SSL em desenvolvimento
   };
 } else {
   // Fallback para configuração manual por host/porta
