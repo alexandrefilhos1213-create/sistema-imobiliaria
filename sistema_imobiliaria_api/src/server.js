@@ -23,7 +23,6 @@ const allowedOrigins = [
 
 app.use(cors({
   origin: function (origin, callback) {
-    // Permite requests sem origin (Postman, curl, mobile)
     if (!origin) return callback(null, true);
 
     if (allowedOrigins.includes(origin)) {
@@ -32,13 +31,10 @@ app.use(cors({
 
     return callback(new Error('Não permitido pelo CORS'));
   },
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  methods: ['GET', 'POST', 'PUT', 'DELETE'],
   allowedHeaders: ['Content-Type', 'Authorization'],
   credentials: true
 }));
-
-// Preflight
-app.options('*', cors());
 
 // Compressão de respostas
 const compression = require('compression');
