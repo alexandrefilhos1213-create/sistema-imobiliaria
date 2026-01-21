@@ -11,37 +11,22 @@ const jwt = require('jsonwebtoken');
 
 const app = express();
 
-// CORS configurado com origens permitidas
-const allowedOrigins = process.env.ALLOWED_ORIGINS 
-  ? process.env.ALLOWED_ORIGINS.split(',')
-  : [
-      'http://localhost:3000', 
-      'http://localhost:8080', 
-      'https://sistema-imobiliaria.onrender.com',
-      // Apps Flutter (mobile)
-      'capacitor://localhost',
-      'ionic://localhost',
-      'http://localhost',
-      'https://localhost',
-      // Permitir qualquer origem em desenvolvimento
-      ...(process.env.NODE_ENV === 'development' ? ['*'] : [])
-    ];
-
+// CORS configurado para permitir Flutter Web
 app.use(cors({
-  origin: function (origin, callback) {
-    // Permitir requisições sem origin (mobile apps, Postman, etc)
+  origin: (origin, callback) => {
+    // ✅ PERMITIR requests sem origin (Flutter Web / OPTIONS)
     if (!origin) return callback(null, true);
     
-    if (allowedOrigins.indexOf(origin) !== -1 || process.env.NODE_ENV === 'development') {
-      callback(null, true);
-    } else {
-      callback(new Error('Não permitido pelo CORS'));
-    }
+    // Permitir qualquer origem em produção
+    return callback(null, true);
   },
-  credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization']
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  credentials: true
 }));
+
+// 🔥 ESSENCIAL para Flutter Web
+app.options('*', cors());
 
 // Compressão de respostas
 const compression = require('compression');
