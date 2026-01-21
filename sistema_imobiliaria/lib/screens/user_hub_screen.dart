@@ -13,14 +13,6 @@ class UserHubScreen extends StatefulWidget {
 
   @override
   State<UserHubScreen> createState() => _UserHubScreenState();
-
-  // Método estático para acesso externo
-  static void refreshData() {
-    // Encontrar a instância atual e chamar refresh
-    if (_UserHubScreenState._instance != null) {
-      _UserHubScreenState._instance!._refreshData();
-    }
-  }
 }
 
 class _UserHubScreenState extends State<UserHubScreen>
@@ -40,13 +32,9 @@ class _UserHubScreenState extends State<UserHubScreen>
   // Estatísticas dinâmicas
   Map<String, dynamic> _stats = {'imoveis': 0, 'locadores': 0, 'locatarios': 0};
 
-  // Instância estática para acesso externo
-  static _UserHubScreenState? _instance;
-
   @override
   void initState() {
     super.initState();
-    _instance = this;
     _fadeController = AnimationController(
       duration: const Duration(milliseconds: 1200),
       vsync: this,
@@ -100,8 +88,6 @@ class _UserHubScreenState extends State<UserHubScreen>
         debugPrint('Condomínio Titular: ${imovel['condominio_titular']}');
         debugPrint('Condomínio Valor: ${imovel['condominio_valor_estimado']}');
         debugPrint('Locador Nome: ${imovel['locador_nome']}');
-        debugPrint('Locador Nome Bytes: ${imovel['locador_nome']?.codeUnits}');
-        debugPrint('Locador Nome Runes: ${imovel['locador_nome']?.runes.toList()}');
         debugPrint('Locador CPF: ${imovel['locador_cpf']}');
         debugPrint('Locador Telefone: ${imovel['locador_telefone']}');
         debugPrint('Locador Email: ${imovel['locador_email']}');
@@ -128,14 +114,6 @@ class _UserHubScreenState extends State<UserHubScreen>
 
   void _refreshData() async {
     await _loadData();
-  }
-
-  @override
-  void dispose() {
-    _instance = null;
-    _fadeController.dispose();
-    _slideController.dispose();
-    super.dispose();
   }
 
   // Método para corrigir encoding de caracteres especiais
@@ -216,6 +194,13 @@ class _UserHubScreenState extends State<UserHubScreen>
     setState(() {
       _activeTab = tabName;
     });
+  }
+
+  @override
+  void dispose() {
+    _fadeController.dispose();
+    _slideController.dispose();
+    super.dispose();
   }
 
   @override
