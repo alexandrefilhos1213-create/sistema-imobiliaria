@@ -1,5 +1,15 @@
 {
   "projects": {
     "default": "sistema-imobiliaria-2026"
-  }
+  },
+  "targets": {
+    "sistema-imobiliaria-2026": {
+      "hosting": {
+        "web": [
+          "sistema-imobiliaria-2026"
+        ]
+      }
+    }
+  },
+  "etags": {}
 }

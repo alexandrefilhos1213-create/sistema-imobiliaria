@@ -11,21 +11,33 @@ const jwt = require('jsonwebtoken');
 
 const app = express();
 
-// CORS configurado para permitir Flutter Web
+// CORS configurado com origens explícitas (obrigatório para credentials: true)
+const allowedOrigins = [
+  'http://localhost:3000',
+  'http://localhost:8080',
+  'http://localhost:5000',
+  'https://sistema-imobiliaria-2026.web.app',
+  'https://sistema-imobiliaria-2026.firebaseapp.com',
+  'https://sistema-imobiliaria.onrender.com'
+];
+
 app.use(cors({
-  origin: (origin, callback) => {
-    // ✅ PERMITIR requests sem origin (Flutter Web / OPTIONS)
+  origin: function (origin, callback) {
+    // Permite requests sem origin (Postman, curl, mobile)
     if (!origin) return callback(null, true);
-    
-    // Permitir qualquer origem em produção
-    return callback(null, true);
+
+    if (allowedOrigins.includes(origin)) {
+      return callback(null, true);
+    }
+
+    return callback(new Error('Não permitido pelo CORS'));
   },
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
   credentials: true
 }));
 
-// 🔥 ESSENCIAL para Flutter Web
+// Preflight
 app.options('*', cors());
 
 // Compressão de respostas
