@@ -327,13 +327,12 @@ app.post('/login', async (req, res) => {
 
     const client = await pool.connect();
     try {
-      // Buscar usuário - tenta buscar campo de senha hash primeiro, depois fallback para senha
+      // Buscar usuário - apenas senha_hash (sistema novo)
       const queryText = `SELECT 
                           id, 
                           nome, 
                           ${USER_LOGIN_FIELD} AS login, 
-                          ${USER_PASSWORD_FIELD} AS senha,
-                          COALESCE(senha_hash, NULL) AS senha_hash
+                          senha_hash
                          FROM ${USERS_TABLE}
                          WHERE ${USER_LOGIN_FIELD} = $1
                          LIMIT 1`;
@@ -350,9 +349,8 @@ app.post('/login', async (req, res) => {
       const usuarioDB = result.rows[0];
       let senhaValida = false;
 
-      // Verificar se tem senha_hash (novo sistema) ou senha (sistema antigo)
+      // Sistema novo: sempre usar bcrypt
       if (usuarioDB.senha_hash) {
-        // Sistema novo: usar bcrypt
         try {
           senhaValida = await bcrypt.compare(senha, usuarioDB.senha_hash);
         } catch (bcryptError) {
@@ -363,14 +361,10 @@ app.post('/login', async (req, res) => {
           });
         }
       } else {
-        // Sistema antigo: comparação direta (compatibilidade retroativa)
-        senhaValida = usuarioDB.senha === senha;
-        
-        // Se login bem-sucedido com senha antiga, oferecer migração (opcional)
-        // Por enquanto apenas logamos para referência futura
-        if (senhaValida) {
-          console.log(`Usuário ${usuarioDB.id} fez login com senha em texto plano. Considere migrar para hash.`);
-        }
+        return res.status(401).json({
+          success: false,
+          message: 'Usuário sem senha cadastrada.',
+        });
       }
 
       if (!senhaValida) {
