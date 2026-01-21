@@ -14,7 +14,18 @@ const app = express();
 // CORS configurado com origens permitidas
 const allowedOrigins = process.env.ALLOWED_ORIGINS 
   ? process.env.ALLOWED_ORIGINS.split(',')
-  : ['http://localhost:3000', 'http://localhost:8080', 'https://sistema-imobiliaria.onrender.com'];
+  : [
+      'http://localhost:3000', 
+      'http://localhost:8080', 
+      'https://sistema-imobiliaria.onrender.com',
+      // Apps Flutter (mobile)
+      'capacitor://localhost',
+      'ionic://localhost',
+      'http://localhost',
+      'https://localhost',
+      // Permitir qualquer origem em desenvolvimento
+      ...(process.env.NODE_ENV === 'development' ? ['*'] : [])
+    ];
 
 app.use(cors({
   origin: function (origin, callback) {
