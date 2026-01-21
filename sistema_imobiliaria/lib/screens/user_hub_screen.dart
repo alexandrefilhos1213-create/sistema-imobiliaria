@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart';
 import 'package:sistema_imobiliaria/screens/locador_detail_screen.dart';
 import 'package:sistema_imobiliaria/screens/locatario_detail_screen.dart';
 import 'package:sistema_imobiliaria/screens/imovel_detail_screen.dart';
@@ -13,102 +12,48 @@ class UserHubScreen extends StatefulWidget {
 
   @override
   State<UserHubScreen> createState() => _UserHubScreenState();
+
+  // Método estático para acesso externo
+  static void refreshData() {
+    if (_UserHubScreenState._instance != null) {
+      _UserHubScreenState._instance!._refreshData();
+    }
+  }
 }
 
-class _UserHubScreenState extends State<UserHubScreen>
-    with TickerProviderStateMixin {
+class _UserHubScreenState extends State<UserHubScreen> {
+  List<dynamic> _imoveis = [];
+  List<dynamic> _locadores = [];
+  List<dynamic> _locatarios = [];
+  bool _isLoading = true;
   String _activeTab = 'Imóveis';
 
-  late AnimationController _fadeController;
-  late AnimationController _slideController;
-  late Animation<double> _fadeAnimation;
-  late Animation<Offset> _slideAnimation;
-
-  // Listas dinâmicas
-  List<Map<String, dynamic>> _locadores = [];
-  List<Map<String, dynamic>> _locatarios = [];
-  List<Map<String, dynamic>> _imoveis = [];
-  
-  // Estatísticas dinâmicas
-  Map<String, dynamic> _stats = {'imoveis': 0, 'locadores': 0, 'locatarios': 0};
+  // Instância estática para acesso externo
+  static _UserHubScreenState? _instance;
 
   @override
   void initState() {
     super.initState();
-    _fadeController = AnimationController(
-      duration: const Duration(milliseconds: 1200),
-      vsync: this,
-    );
-    _slideController = AnimationController(
-      duration: const Duration(milliseconds: 800),
-      vsync: this,
-    );
-
-    _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
-      CurvedAnimation(parent: _fadeController, curve: Curves.easeInOut),
-    );
-
-    _slideAnimation = Tween<Offset>(
-      begin: const Offset(0, 0.3),
-      end: Offset.zero,
-    ).animate(CurvedAnimation(parent: _slideController, curve: Curves.easeOut));
-
-    _fadeController.forward();
-    _slideController.forward();
-    
-    // Carregar dados do banco
+    _instance = this;
     _loadData();
   }
 
   Future<void> _loadData() async {
     try {
-      final locadores = await DatabaseService.getLocadores();
-      final locatarios = await DatabaseService.getLocatarios();
-      final imoveis = await DatabaseService.getImoveis();
-      final stats = await DatabaseService.getStatistics();
-      
-      debugPrint('=== DEBUG: Imóveis Carregados ===');
-      debugPrint('Total de imóveis: ${imoveis.length}');
-      
-      for (int i = 0; i < imoveis.length; i++) {
-        final imovel = imoveis[i];
-        debugPrint('--- Imóvel ${i + 1} (ID: ${imovel['id']}) ---');
-        debugPrint('Tipo: ${imovel['tipo']}');
-        debugPrint('Endereço: ${imovel['endereco']}');
-        debugPrint('Cadastro IPTU: ${imovel['cadastro_iptu']}');
-        debugPrint('Unidade Consumidora Número: ${imovel['unidade_consumidora_numero']}');
-        debugPrint('Unidade Consumidora Titular: ${imovel['unidade_consumidora_titular']}');
-        debugPrint('Unidade Consumidora CPF: ${imovel['unidade_consumidora_cpf']}');
-        debugPrint('Saneago Número: ${imovel['saneago_numero_conta']}');
-        debugPrint('Saneago Titular: ${imovel['saneago_titular']}');
-        debugPrint('Saneago CPF: ${imovel['saneago_cpf']}');
-        debugPrint('Gás Número: ${imovel['gas_numero_conta']}');
-        debugPrint('Gás Titular: ${imovel['gas_titular']}');
-        debugPrint('Gás CPF: ${imovel['gas_cpf']}');
-        debugPrint('Condomínio Titular: ${imovel['condominio_titular']}');
-        debugPrint('Condomínio Valor: ${imovel['condominio_valor_estimado']}');
-        debugPrint('Locador Nome: ${imovel['locador_nome']}');
-        debugPrint('Locador CPF: ${imovel['locador_cpf']}');
-        debugPrint('Locador Telefone: ${imovel['locador_telefone']}');
-        debugPrint('Locador Email: ${imovel['locador_email']}');
-        debugPrint('Locatário Nome: ${imovel['locatario_nome']}');
-        debugPrint('Locatário CPF: ${imovel['locatario_cpf']}');
-        debugPrint('Locatário Telefone: ${imovel['locatario_telefone']}');
-        debugPrint('Locatário Email: ${imovel['locatario_email']}');
-        debugPrint('--- FIM Imóvel ${i + 1} ---');
-      }
-      
-      debugPrint('=== FIM DEBUG IMÓVEIS ===');
-      
+      final imoveisResponse = await DatabaseService.getImoveis();
+      final locadoresResponse = await DatabaseService.getLocadores();
+      final locatariosResponse = await DatabaseService.getLocatarios();
+
       setState(() {
-        _locadores = locadores;
-        _locatarios = locatarios;
-        _imoveis = imoveis;
-        _stats = stats;
+        _imoveis = imoveisResponse;
+        _locadores = locadoresResponse;
+        _locatarios = locatariosResponse;
+        _isLoading = false;
       });
     } catch (e) {
-      debugPrint('Erro ao carregar dados: $e');
-      // Manter dados existentes em caso de erro
+      setState(() {
+        _isLoading = false;
+      });
     }
   }
 
@@ -116,96 +61,20 @@ class _UserHubScreenState extends State<UserHubScreen>
     await _loadData();
   }
 
-  // Método para corrigir encoding de caracteres especiais
-  String _fixEncoding(String text) {
-    if (text == null) return 'Sem dados';
-    
-    // Substituir caracteres corrompidos por caracteres corretos
-    return text
-        // Letras minúsculas com acento
-        .replaceAll('�', 'á')
-        .replaceAll('�', 'à')
-        .replaceAll('�', 'â')
-        .replaceAll('�', 'ã')
-        .replaceAll('�', 'ä')
-        .replaceAll('�', 'å')
-        .replaceAll('�', 'é')
-        .replaceAll('�', 'è')
-        .replaceAll('�', 'ê')
-        .replaceAll('�', 'ë')
-        .replaceAll('�', 'í')
-        .replaceAll('�', 'ì')
-        .replaceAll('�', 'î')
-        .replaceAll('�', 'ï')
-        .replaceAll('�', 'ó')
-        .replaceAll('�', 'ò')
-        .replaceAll('�', 'ô')
-        .replaceAll('�', 'õ')
-        .replaceAll('�', 'ö')
-        .replaceAll('�', 'ø')
-        .replaceAll('�', 'ú')
-        .replaceAll('�', 'ù')
-        .replaceAll('�', 'û')
-        .replaceAll('�', 'ü')
-        .replaceAll('�', 'ý')
-        .replaceAll('�', 'ÿ')
-        // Letras maiúsculas com acento
-        .replaceAll('�', 'Á')
-        .replaceAll('�', 'À')
-        .replaceAll('�', 'Â')
-        .replaceAll('�', 'Ã')
-        .replaceAll('�', 'Ä')
-        .replaceAll('�', 'Å')
-        .replaceAll('�', 'É')
-        .replaceAll('�', 'È')
-        .replaceAll('�', 'Ê')
-        .replaceAll('�', 'Ë')
-        .replaceAll('�', 'Í')
-        .replaceAll('�', 'Ì')
-        .replaceAll('�', 'Î')
-        .replaceAll('�', 'Ï')
-        .replaceAll('�', 'Ó')
-        .replaceAll('�', 'Ò')
-        .replaceAll('�', 'Ô')
-        .replaceAll('�', 'Õ')
-        .replaceAll('�', 'Ö')
-        .replaceAll('�', 'Ø')
-        .replaceAll('�', 'Ú')
-        .replaceAll('�', 'Ù')
-        .replaceAll('�', 'Û')
-        .replaceAll('�', 'Ü')
-        .replaceAll('�', 'Ý')
-        // Caracteres especiais
-        .replaceAll('�', 'ç')
-        .replaceAll('�', 'Ç')
-        .replaceAll('�', 'ñ')
-        .replaceAll('�', 'Ñ')
-        .replaceAll('�', 'ý')
-        // Combinações comuns
-        .replaceAll('Jo�o', 'João')
-        .replaceAll('S�o', 'São')
-        .replaceAll('�', 'ão')
-        .replaceAll('�', 'ões')
-        .replaceAll('�', 'ãe')
-        .replaceAll('�', 'ões');
+  @override
+  void dispose() {
+    _instance = null;
+    super.dispose();
   }
 
-  void _changeTab(String tabName) {
+  void _changeTab(String tab) {
     setState(() {
-      _activeTab = tabName;
+      _activeTab = tab;
     });
   }
 
   @override
-  void dispose() {
-    _fadeController.dispose();
-    _slideController.dispose();
-    super.dispose();
-  }
-
-  @override
   Widget build(BuildContext context) {
-    debugPrint('Build UserHubScreen - Imóveis: ${_imoveis.length}'); // Debug simples
     return Scaffold(
       body: Container(
         decoration: const BoxDecoration(
@@ -224,124 +93,702 @@ class _UserHubScreenState extends State<UserHubScreen>
             children: [
               // Header
               Container(
+                margin: const EdgeInsets.all(24),
                 padding: const EdgeInsets.all(24),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                decoration: BoxDecoration(
+                  color: const Color(0xFF4A5568),
+                  borderRadius: BorderRadius.circular(24),
+                  border: Border.all(
+                    color: Colors.white.withOpacity(0.1),
+                    width: 1,
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.2),
+                      blurRadius: 24,
+                      offset: const Offset(0, 12),
+                    ),
+                  ],
+                ),
+                child: Row(
                   children: [
-                    Row(
-                      children: [
-                        Container(
-                          width: 45,
-                          height: 45,
-                          decoration: BoxDecoration(
-                            color: const Color(0xFF4A5568),
-                            borderRadius: BorderRadius.circular(12),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withOpacity(0.1),
-                                blurRadius: 10,
-                                offset: const Offset(0, 4),
-                              ),
-                            ],
-                          ),
-                          child: const Icon(
-                            Icons.home_outlined,
-                            color: Color(0xFFE2E8F0),
-                            size: 24,
-                          ),
+                    Container(
+                      width: 56,
+                      height: 56,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF3B82F6).withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(
+                          color: const Color(0xFF3B82F6).withOpacity(0.2),
+                          width: 2,
                         ),
-                        const SizedBox(width: 16),
-                        const Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
+                        boxShadow: [
+                          BoxShadow(
+                            color: const Color(0xFF3B82F6).withOpacity(0.15),
+                            blurRadius: 16,
+                            offset: const Offset(0, 8),
+                          ),
+                        ],
+                      ),
+                      child: const Icon(
+                        Icons.home,
+                        color: Color(0xFF3B82F6),
+                        size: 28,
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Bem-vindo',
+                            style: TextStyle(
+                              fontFamily: 'Inter',
+                              fontSize: 24,
+                              fontWeight: FontWeight.w700,
+                              color: Color(0xFFE2E8F0),
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          const Text(
+                            '+ Mais Vida Imóveis',
+                            style: TextStyle(
+                              fontFamily: 'Inter',
+                              fontSize: 16,
+                              fontWeight: FontWeight.w500,
+                              color: Color(0xFF9CA3AF),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Container(
+                      width: 48,
+                      height: 48,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF3B82F6).withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: const Color(0xFF3B82F6).withOpacity(0.2),
+                          width: 1,
+                        ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: const Color(0xFF3B82F6).withOpacity(0.15),
+                            blurRadius: 12,
+                            offset: const Offset(0, 6),
+                          ),
+                        ],
+                      ),
+                      child: const Icon(
+                        Icons.notifications_outlined,
+                        color: Color(0xFF3B82F6),
+                        size: 24,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 24),
+              // Stats Cards
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 24),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Container(
+                        padding: const EdgeInsets.all(20),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF3B82F6),
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(
+                            color: Colors.white.withOpacity(0.1),
+                            width: 1,
+                          ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: const Color(0xFF3B82F6).withOpacity(0.3),
+                              blurRadius: 20,
+                              offset: const Offset(0, 8),
+                            ),
+                          ],
+                        ),
+                        child: Column(
                           children: [
                             Text(
-                              'Bem-vindo',
+                              '${_imoveis.length}',
+                              style: const TextStyle(
+                                fontFamily: 'Inter',
+                                fontSize: 28,
+                                fontWeight: FontWeight.w700,
+                                color: Colors.white,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            const Text(
+                              'Imóveis',
                               style: TextStyle(
                                 fontFamily: 'Inter',
                                 fontSize: 14,
                                 fontWeight: FontWeight.w500,
-                                color: Color(0xFF9CA3AF),
-                              ),
-                            ),
-                            Text(
-                              '+ Mais Vida Imóveis',
-                              style: TextStyle(
-                                fontFamily: 'Inter',
-                                fontSize: 20,
-                                fontWeight: FontWeight.w700,
-                                color: Color(0xFFE2E8F0),
+                                color: Colors.white,
                               ),
                             ),
                           ],
                         ),
-                        const Spacer(),
-                        Container(
-                          width: 40,
-                          height: 40,
-                          decoration: BoxDecoration(
-                            color: const Color(0xFF4A5568),
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                          child: const Icon(
-                            Icons.notifications_outlined,
-                            color: Color(0xFF9CA3AF),
-                            size: 20,
-                          ),
-                        ),
-                      ],
+                      ),
                     ),
-                    const SizedBox(height: 24),
-                    // Stats Cards
-                    Row(
-                      children: [
-                        _buildStatCard('Imóveis', _stats['imoveis'].toString(), const Color(0xFF3B82F6)),
-                        const SizedBox(width: 12),
-                        _buildStatCard('Locadores', _stats['locadores'].toString(), const Color(0xFF10B981)),
-                        const SizedBox(width: 12),
-                        _buildStatCard('Locatários', _stats['locatarios'].toString(), const Color(0xFFF59E0B)),
-                      ],
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Container(
+                        padding: const EdgeInsets.all(20),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF10B981),
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(
+                            color: Colors.white.withOpacity(0.1),
+                            width: 1,
+                          ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: const Color(0xFF10B981).withOpacity(0.3),
+                              blurRadius: 20,
+                              offset: const Offset(0, 8),
+                            ),
+                          ],
+                        ),
+                        child: Column(
+                          children: [
+                            Text(
+                              '${_locadores.length}',
+                              style: const TextStyle(
+                                fontFamily: 'Inter',
+                                fontSize: 28,
+                                fontWeight: FontWeight.w700,
+                                color: Colors.white,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            const Text(
+                              'Locadores',
+                              style: TextStyle(
+                                fontFamily: 'Inter',
+                                fontSize: 14,
+                                fontWeight: FontWeight.w500,
+                                color: Colors.white,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Container(
+                        padding: const EdgeInsets.all(20),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFF59E0B),
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(
+                            color: Colors.white.withOpacity(0.1),
+                            width: 1,
+                          ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: const Color(0xFFF59E0B).withOpacity(0.3),
+                              blurRadius: 20,
+                              offset: const Offset(0, 8),
+                            ),
+                          ],
+                        ),
+                        child: Column(
+                          children: [
+                            Text(
+                              '${_locatarios.length}',
+                              style: const TextStyle(
+                                fontFamily: 'Inter',
+                                fontSize: 28,
+                                fontWeight: FontWeight.w700,
+                                color: Colors.white,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            const Text(
+                              'Locatários',
+                              style: TextStyle(
+                                fontFamily: 'Inter',
+                                fontSize: 14,
+                                fontWeight: FontWeight.w500,
+                                color: Colors.white,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
                     ),
                   ],
                 ),
               ),
-              // Abas
-              Container(
+              const SizedBox(height: 24),
+              // Tabs
+              Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 24),
                 child: Row(
                   children: [
-                    _buildTab('Imóveis', _activeTab == 'Imóveis'),
-                    const SizedBox(width: 8),
-                    _buildTab('Locadores', _activeTab == 'Locadores'),
-                    const SizedBox(width: 8),
-                    _buildTab('Locatários', _activeTab == 'Locatários'),
+                    Expanded(
+                      child: GestureDetector(
+                        onTap: () => _changeTab('Imóveis'),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          decoration: BoxDecoration(
+                            color: _activeTab == 'Imóveis'
+                                ? const Color(0xFF3B82F6)
+                                : Colors.transparent,
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: _activeTab == 'Imóveis'
+                                  ? const Color(0xFF3B82F6)
+                                  : const Color(0xFF4A5568),
+                              width: 1,
+                            ),
+                          ),
+                          child: Text(
+                            'Imóveis',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              fontFamily: 'Inter',
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                              color: _activeTab == 'Imóveis'
+                                  ? Colors.white
+                                  : const Color(0xFF9CA3AF),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: GestureDetector(
+                        onTap: () => _changeTab('Locadores'),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          decoration: BoxDecoration(
+                            color: _activeTab == 'Locadores'
+                                ? const Color(0xFF10B981)
+                                : Colors.transparent,
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: _activeTab == 'Locadores'
+                                  ? const Color(0xFF10B981)
+                                  : const Color(0xFF4A5568),
+                              width: 1,
+                            ),
+                          ),
+                          child: Text(
+                            'Locadores',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              fontFamily: 'Inter',
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                              color: _activeTab == 'Locadores'
+                                  ? Colors.white
+                                  : const Color(0xFF9CA3AF),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: GestureDetector(
+                        onTap: () => _changeTab('Locatários'),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          decoration: BoxDecoration(
+                            color: _activeTab == 'Locatários'
+                                ? const Color(0xFFF59E0B)
+                                : Colors.transparent,
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: _activeTab == 'Locatários'
+                                  ? const Color(0xFFF59E0B)
+                                  : const Color(0xFF4A5568),
+                              width: 1,
+                            ),
+                          ),
+                          child: Text(
+                            'Locatários',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              fontFamily: 'Inter',
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                              color: _activeTab == 'Locatários'
+                                  ? Colors.white
+                                  : const Color(0xFF9CA3AF),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
                   ],
                 ),
               ),
-              const SizedBox(height: 20),
-              // Conteúdo
+              const SizedBox(height: 16),
+              // Content
               Expanded(
-                child: FadeTransition(
-                  opacity: _fadeAnimation,
-                  child: SlideTransition(
-                    position: _slideAnimation,
-                    child: Stack(
-                      children: [
-                        _buildTabContent(),
-                        // Botão flutuante de adicionar
-                        Positioned(
-                          bottom: 20,
-                          left: 24,
-                          child: _buildAddButton(),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
+                child: _buildTabContent(),
               ),
             ],
           ),
         ),
       ),
+      floatingActionButton: _buildAddButton(),
+      floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
+    );
+  }
+
+  Widget _buildTabContent() {
+    switch (_activeTab) {
+      case 'Imóveis':
+        return _buildImoveisList();
+      case 'Locadores':
+        return _buildLocadoresList();
+      case 'Locatários':
+        return _buildLocatariosList();
+      default:
+        return Container();
+    }
+  }
+
+  Widget _buildImoveisList() {
+    if (_isLoading) {
+      return const Center(
+        child: CircularProgressIndicator(
+          color: Color(0xFF3B82F6),
+        ),
+      );
+    }
+
+    if (_imoveis.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.home_outlined,
+              size: 64,
+              color: const Color(0xFF3B82F6).withOpacity(0.5),
+            ),
+            const SizedBox(height: 16),
+            const Text(
+              'Nenhum imóvel cadastrado',
+              style: TextStyle(
+                fontFamily: 'Inter',
+                fontSize: 18,
+                fontWeight: FontWeight.w500,
+                color: Color(0xFF9CA3AF),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return ListView.builder(
+      padding: const EdgeInsets.all(24),
+      itemCount: _imoveis.length,
+      itemBuilder: (context, index) {
+        final imovel = _imoveis[index];
+        return Container(
+          margin: const EdgeInsets.only(bottom: 16),
+          decoration: BoxDecoration(
+            color: const Color(0xFF4A5568),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: const Color(0xFF3B82F6).withOpacity(0.2),
+              width: 1,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: const Color(0xFF3B82F6).withOpacity(0.1),
+                blurRadius: 12,
+                offset: const Offset(0, 6),
+              ),
+            ],
+          ),
+          child: ListTile(
+            contentPadding: const EdgeInsets.all(20),
+            title: Text(
+              imovel['endereco'] ?? 'Endereço não informado',
+              style: const TextStyle(
+                fontFamily: 'Inter',
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+                color: Color(0xFFE2E8F0),
+              ),
+            ),
+            subtitle: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const SizedBox(height: 8),
+                Text(
+                  'Tipo: ${imovel['tipo'] ?? 'Não informado'}',
+                  style: const TextStyle(
+                    fontFamily: 'Inter',
+                    fontSize: 14,
+                    color: Color(0xFF9CA3AF),
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Valor: R\$ ${imovel['valor'] ?? '0,00'}',
+                  style: const TextStyle(
+                    fontFamily: 'Inter',
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: Color(0xFF3B82F6),
+                  ),
+                ),
+              ],
+            ),
+            trailing: const Icon(
+              Icons.arrow_forward_ios,
+              color: Color(0xFF3B82F6),
+              size: 20,
+            ),
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => ImovelDetailScreen(imovel: imovel),
+                ),
+              );
+            },
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildLocadoresList() {
+    if (_isLoading) {
+      return const Center(
+        child: CircularProgressIndicator(
+          color: Color(0xFF10B981),
+        ),
+      );
+    }
+
+    if (_locadores.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.person_outline,
+              size: 64,
+              color: const Color(0xFF10B981).withOpacity(0.5),
+            ),
+            const SizedBox(height: 16),
+            const Text(
+              'Nenhum locador cadastrado',
+              style: TextStyle(
+                fontFamily: 'Inter',
+                fontSize: 18,
+                fontWeight: FontWeight.w500,
+                color: Color(0xFF9CA3AF),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return ListView.builder(
+      padding: const EdgeInsets.all(24),
+      itemCount: _locadores.length,
+      itemBuilder: (context, index) {
+        final locador = _locadores[index];
+        return Container(
+          margin: const EdgeInsets.only(bottom: 16),
+          decoration: BoxDecoration(
+            color: const Color(0xFF4A5568),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: const Color(0xFF10B981).withOpacity(0.2),
+              width: 1,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: const Color(0xFF10B981).withOpacity(0.1),
+                blurRadius: 12,
+                offset: const Offset(0, 6),
+              ),
+            ],
+          ),
+          child: ListTile(
+            contentPadding: const EdgeInsets.all(20),
+            title: Text(
+              locador['nome'] ?? 'Nome não informado',
+              style: const TextStyle(
+                fontFamily: 'Inter',
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+                color: Color(0xFFE2E8F0),
+              ),
+            ),
+            subtitle: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const SizedBox(height: 8),
+                Text(
+                  'CPF: ${locador['cpf'] ?? 'Não informado'}',
+                  style: const TextStyle(
+                    fontFamily: 'Inter',
+                    fontSize: 14,
+                    color: Color(0xFF9CA3AF),
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Telefone: ${locador['telefone'] ?? 'Não informado'}',
+                  style: const TextStyle(
+                    fontFamily: 'Inter',
+                    fontSize: 14,
+                    color: Color(0xFF9CA3AF),
+                  ),
+                ),
+              ],
+            ),
+            trailing: const Icon(
+              Icons.arrow_forward_ios,
+              color: Color(0xFF10B981),
+              size: 20,
+            ),
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => LocadorDetailScreen(locador: locador),
+                ),
+              );
+            },
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildLocatariosList() {
+    if (_isLoading) {
+      return const Center(
+        child: CircularProgressIndicator(
+          color: Color(0xFFF59E0B),
+        ),
+      );
+    }
+
+    if (_locatarios.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.person_outline,
+              size: 64,
+              color: const Color(0xFFF59E0B).withOpacity(0.5),
+            ),
+            const SizedBox(height: 16),
+            const Text(
+              'Nenhum locatário cadastrado',
+              style: TextStyle(
+                fontFamily: 'Inter',
+                fontSize: 18,
+                fontWeight: FontWeight.w500,
+                color: Color(0xFF9CA3AF),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return ListView.builder(
+      padding: const EdgeInsets.all(24),
+      itemCount: _locatarios.length,
+      itemBuilder: (context, index) {
+        final locatario = _locatarios[index];
+        return Container(
+          margin: const EdgeInsets.only(bottom: 16),
+          decoration: BoxDecoration(
+            color: const Color(0xFF4A5568),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: const Color(0xFFF59E0B).withOpacity(0.2),
+              width: 1,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: const Color(0xFFF59E0B).withOpacity(0.1),
+                blurRadius: 12,
+                offset: const Offset(0, 6),
+              ),
+            ],
+          ),
+          child: ListTile(
+            contentPadding: const EdgeInsets.all(20),
+            title: Text(
+              locatario['nome'] ?? 'Nome não informado',
+              style: const TextStyle(
+                fontFamily: 'Inter',
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+                color: Color(0xFFE2E8F0),
+              ),
+            ),
+            subtitle: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const SizedBox(height: 8),
+                Text(
+                  'CPF: ${locatario['cpf'] ?? 'Não informado'}',
+                  style: const TextStyle(
+                    fontFamily: 'Inter',
+                    fontSize: 14,
+                    color: Color(0xFF9CA3AF),
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Telefone: ${locatario['telefone'] ?? 'Não informado'}',
+                  style: const TextStyle(
+                    fontFamily: 'Inter',
+                    fontSize: 14,
+                    color: Color(0xFF9CA3AF),
+                  ),
+                ),
+              ],
+            ),
+            trailing: const Icon(
+              Icons.arrow_forward_ios,
+              color: Color(0xFFF59E0B),
+              size: 20,
+            ),
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => LocatarioDetailScreen(locatario: locatario),
+                ),
+              );
+            },
+          ),
+        );
+      },
     );
   }
 
@@ -361,7 +808,6 @@ class _UserHubScreenState extends State<UserHubScreen>
             context,
             MaterialPageRoute(builder: (context) => const AddImovelScreen()),
           );
-          // Recarregar dados quando voltar
           _refreshData();
         };
         break;
@@ -374,7 +820,6 @@ class _UserHubScreenState extends State<UserHubScreen>
             context,
             MaterialPageRoute(builder: (context) => const AddLocadorScreen()),
           );
-          // Recarregar dados quando voltar
           _refreshData();
         };
         break;
@@ -387,7 +832,6 @@ class _UserHubScreenState extends State<UserHubScreen>
             context,
             MaterialPageRoute(builder: (context) => const AddLocatarioScreen()),
           );
-          // Recarregar dados quando voltar
           _refreshData();
         };
         break;
@@ -401,12 +845,16 @@ class _UserHubScreenState extends State<UserHubScreen>
     return Container(
       decoration: BoxDecoration(
         color: color,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: Colors.white.withOpacity(0.1),
+          width: 1,
+        ),
         boxShadow: [
           BoxShadow(
             color: color.withOpacity(0.3),
-            blurRadius: 12,
-            offset: const Offset(0, 4),
+            blurRadius: 20,
+            offset: const Offset(0, 8),
           ),
         ],
       ),
@@ -414,9 +862,11 @@ class _UserHubScreenState extends State<UserHubScreen>
         color: Colors.transparent,
         child: InkWell(
           onTap: onPressed,
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(20),
+          splashColor: Colors.white.withOpacity(0.2),
+          highlightColor: Colors.white.withOpacity(0.1),
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
@@ -425,12 +875,12 @@ class _UserHubScreenState extends State<UserHubScreen>
                   color: Colors.white,
                   size: 20,
                 ),
-                const SizedBox(width: 8),
+                const SizedBox(width: 12),
                 Text(
                   label,
                   style: const TextStyle(
                     fontFamily: 'Inter',
-                    fontSize: 14,
+                    fontSize: 16,
                     fontWeight: FontWeight.w600,
                     color: Colors.white,
                   ),
@@ -438,443 +888,6 @@ class _UserHubScreenState extends State<UserHubScreen>
               ],
             ),
           ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildTab(String title, bool isActive) {
-    return Expanded(
-      child: GestureDetector(
-        onTap: () => _changeTab(title),
-        child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 16),
-          decoration: BoxDecoration(
-            color: isActive ? const Color(0xFF4A5568) : Colors.transparent,
-            borderRadius: BorderRadius.circular(12),
-            border: isActive ? null : Border.all(
-              color: const Color(0xFF4A5568).withOpacity(0.3),
-              width: 1,
-            ),
-          ),
-          child: Center(
-            child: Text(
-              title,
-              style: TextStyle(
-                fontFamily: 'Inter',
-                fontSize: 14,
-                fontWeight: FontWeight.w600,
-                color: isActive ? const Color(0xFFE2E8F0) : const Color(0xFF9CA3AF),
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildTabContent() {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 24),
-      child: _buildContent(),
-    );
-  }
-
-  Widget _buildContent() {
-    if (_activeTab == 'Imóveis') {
-      return _buildImoveisGrid();
-    } else if (_activeTab == 'Locadores') {
-      return _buildLocadoresGrid();
-    } else {
-      return _buildLocatariosGrid();
-    }
-  }
-
-  Widget _buildImoveisGrid() {
-    debugPrint('Total de imóveis: ${_imoveis.length}'); // Debug para verificar quantidade
-    if (_imoveis.isEmpty) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              Icons.home_outlined,
-              size: 64,
-              color: const Color(0xFF9CA3AF),
-            ),
-            const SizedBox(height: 16),
-            Text(
-              'Nenhum imóvel cadastrado',
-              style: TextStyle(
-                fontFamily: 'Inter',
-                fontSize: 16,
-                color: const Color(0xFF9CA3AF),
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Toque no botão + para adicionar',
-              style: TextStyle(
-                fontFamily: 'Inter',
-                fontSize: 14,
-                color: const Color(0xFF6B7280),
-              ),
-            ),
-          ],
-        ),
-      );
-    }
-
-    return GridView.builder(
-      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: kIsWeb ? 3 : 2,
-        crossAxisSpacing: 12,
-        mainAxisSpacing: 12,
-        childAspectRatio: 1.3,
-      ),
-      itemCount: _imoveis.length,
-      itemBuilder: (context, index) {
-        final imovel = _imoveis[index];
-        return GestureDetector(
-          onTap: () => Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) => ImovelDetailScreen(imovel: imovel),
-            ),
-          ),
-          child: Container(
-            decoration: BoxDecoration(
-              color: const Color(0xFF4A5568),
-              borderRadius: BorderRadius.circular(14),
-              border: Border.all(
-                color: const Color(0xFF3B82F6).withOpacity(0.15),
-                width: 1,
-              ),
-              boxShadow: [
-                BoxShadow(
-                  color: const Color(0xFF3B82F6).withOpacity(0.1),
-                  blurRadius: 6,
-                  offset: const Offset(0, 2),
-                ),
-              ],
-            ),
-          child: Padding(
-            padding: const EdgeInsets.all(12),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Header do card
-                Container(
-                  width: 40,
-                  height: 40,
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF3B82F6).withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: const Icon(
-                    Icons.home_outlined,
-                    size: 20,
-                    color: Color(0xFF3B82F6),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                // Conteúdo
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Tipo: ${_fixEncoding(imovel['tipo']?.toString() ?? 'Imóvel')}',
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              fontFamily: 'Inter',
-                              fontSize: 14,
-                              fontWeight: FontWeight.w600,
-                              color: Colors.white,
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            'End: ${_fixEncoding(imovel['endereco']?.toString() ?? 'Não informado')}',
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              fontFamily: 'Inter',
-                              fontSize: 11,
-                              color: Colors.white70,
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            'Loc: ${_fixEncoding(imovel['locador_nome']?.toString() ?? 'Sem locador')}',
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              fontFamily: 'Inter',
-                              fontSize: 10,
-                              color: Colors.blue,
-                            ),
-                          ),
-                        ],
-                      ),
-                      if (imovel['descricao'] != null && imovel['descricao'].toString().isNotEmpty)
-                        Text(
-                          _fixEncoding(imovel['descricao']),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            fontFamily: 'Inter',
-                            fontSize: 10,
-                            color: Color(0xFF6B7280),
-                          ),
-                        ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),  // <- Fecha o GestureDetector
-      );
-      },
-    );
-  }
-
-  Widget _buildLocadoresGrid() {
-    if (_locadores.isEmpty) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              Icons.person_outline,
-              size: 64,
-              color: const Color(0xFF10B981),
-            ),
-            const SizedBox(height: 16),
-            Text(
-              'Nenhum locador cadastrado',
-              style: TextStyle(
-                fontFamily: 'Inter',
-                fontSize: 16,
-                color: const Color(0xFF9CA3AF),
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Toque no botão + para adicionar',
-              style: TextStyle(
-                fontFamily: 'Inter',
-                fontSize: 14,
-                color: const Color(0xFF6B7280),
-              ),
-            ),
-          ],
-        ),
-      );
-    }
-
-    return ListView.builder(
-      itemCount: _locadores.length,
-      itemBuilder: (context, index) {
-        final locador = _locadores[index];
-        return Container(
-          margin: const EdgeInsets.only(bottom: 12),
-          decoration: BoxDecoration(
-            color: const Color(0xFF4A5568),
-            borderRadius: BorderRadius.circular(12),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.1),
-                blurRadius: 10,
-                offset: const Offset(0, 4),
-              ),
-            ],
-          ),
-          child: ListTile(
-            contentPadding: const EdgeInsets.all(16),
-            leading: Container(
-              width: 40,
-              height: 40,
-              decoration: BoxDecoration(
-                color: const Color(0xFF10B981).withOpacity(0.1),
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: const Icon(Icons.person_outline, color: Color(0xFF10B981), size: 20),
-            ),
-            title: Text(
-              _fixEncoding(locador['name'] ?? locador['nome'] ?? 'Nome não informado'),
-              style: const TextStyle(
-                fontFamily: 'Inter',
-                fontSize: 14,
-                fontWeight: FontWeight.w600,
-                color: Color(0xFFE2E8F0),
-              ),
-            ),
-            subtitle: Text(
-              locador['cpf'] ?? 'CPF não informado',
-              style: const TextStyle(
-                fontFamily: 'Inter',
-                fontSize: 12,
-                color: Color(0xFF9CA3AF),
-              ),
-            ),
-            trailing: const Icon(
-              Icons.arrow_forward_ios,
-              color: Color(0xFF9CA3AF),
-              size: 16,
-            ),
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => LocadorDetailScreen(locador: locador),
-                ),
-              );
-            },
-          ),
-        );
-      },
-    );
-  }
-
-  Widget _buildLocatariosGrid() {
-    if (_locatarios.isEmpty) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              Icons.person_outline,
-              size: 64,
-              color: const Color(0xFFF59E0B),
-            ),
-            const SizedBox(height: 16),
-            Text(
-              'Nenhum locatário cadastrado',
-              style: TextStyle(
-                fontFamily: 'Inter',
-                fontSize: 16,
-                color: const Color(0xFF9CA3AF),
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Toque no botão + para adicionar',
-              style: TextStyle(
-                fontFamily: 'Inter',
-                fontSize: 14,
-                color: const Color(0xFF6B7280),
-              ),
-            ),
-          ],
-        ),
-      );
-    }
-
-    return ListView.builder(
-      itemCount: _locatarios.length,
-      itemBuilder: (context, index) {
-        final locatario = _locatarios[index];
-        return Container(
-          margin: const EdgeInsets.only(bottom: 12),
-          decoration: BoxDecoration(
-            color: const Color(0xFF4A5568),
-            borderRadius: BorderRadius.circular(12),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.1),
-                blurRadius: 10,
-                offset: const Offset(0, 4),
-              ),
-            ],
-          ),
-          child: ListTile(
-            contentPadding: const EdgeInsets.all(16),
-            leading: Container(
-              width: 40,
-              height: 40,
-              decoration: BoxDecoration(
-                color: const Color(0xFFF59E0B).withOpacity(0.1),
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: const Icon(Icons.person_outline, color: Color(0xFFF59E0B), size: 20),
-            ),
-            title: Text(
-              _fixEncoding(locatario['name'] ?? locatario['nome'] ?? 'Nome não informado'),
-              style: const TextStyle(
-                fontFamily: 'Inter',
-                fontSize: 14,
-                fontWeight: FontWeight.w600,
-                color: Color(0xFFE2E8F0),
-              ),
-            ),
-            subtitle: Text(
-              locatario['email'] ?? locatario['cpf'] ?? 'Dados não informados',
-              style: const TextStyle(
-                fontFamily: 'Inter',
-                fontSize: 12,
-                color: Color(0xFF9CA3AF),
-              ),
-            ),
-            trailing: const Icon(
-              Icons.arrow_forward_ios,
-              color: Color(0xFF9CA3AF),
-              size: 16,
-            ),
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => LocatarioDetailScreen(locatario: locatario),
-                ),
-              );
-            },
-          ),
-        );
-      },
-    );
-  }
-
-  Widget _buildStatCard(String title, String value, Color color) {
-    return Expanded(
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: color.withOpacity(0.1),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: color.withOpacity(0.3),
-            width: 1,
-          ),
-        ),
-        child: Column(
-          children: [
-            Text(
-              value,
-              style: TextStyle(
-                fontFamily: 'Inter',
-                fontSize: 24,
-                fontWeight: FontWeight.w700,
-                color: color,
-              ),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              title,
-              style: const TextStyle(
-                fontFamily: 'Inter',
-                fontSize: 12,
-                fontWeight: FontWeight.w500,
-                color: Color(0xFF9CA3AF),
-              ),
-            ),
-          ],
         ),
       ),
     );

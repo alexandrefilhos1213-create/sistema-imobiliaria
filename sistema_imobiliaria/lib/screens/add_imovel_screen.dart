@@ -2,11 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:sistema_imobiliaria/services/database_service.dart';
-import 'package:sistema_imobiliaria/services/image_service.dart';
+import 'package:sistema_imobiliaria/screens/user_hub_screen.dart';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
-import 'dart:html' as html;
-import 'dart:typed_data';
 import 'dart:convert';
 
 class AddImovelScreen extends StatefulWidget {
@@ -22,21 +20,50 @@ class _AddImovelScreenState extends State<AddImovelScreen> {
   // Campos obrigatórios
   final _enderecoController = TextEditingController();
   final _tipoController = TextEditingController();
-  
-  // Campos opcionais
+  final _valorController = TextEditingController();
   final _descricaoController = TextEditingController();
   final _cadastroIptuController = TextEditingController();
+  
+  // Campos de energia elétrica
   final _unidadeConsumidoraNumeroController = TextEditingController();
   final _unidadeConsumidoraTitularController = TextEditingController();
   final _unidadeConsumidoraCpfController = TextEditingController();
+  
+  // Campos de água (Saneago)
   final _saneagoNumeroContaController = TextEditingController();
   final _saneagoTitularController = TextEditingController();
   final _saneagoCpfController = TextEditingController();
+  
+  // Campos de gás
   final _gasNumeroContaController = TextEditingController();
   final _gasTitularController = TextEditingController();
   final _gasCpfController = TextEditingController();
+  
+  // Campos de condomínio
   final _condominioTitularController = TextEditingController();
   final _condominioValorEstimadoController = TextEditingController();
+  
+  // Campos de localização
+  final _cidadeController = TextEditingController();
+  final _estadoController = TextEditingController();
+  
+  // Campos de características
+  final _areaController = TextEditingController();
+  final _quartosController = TextEditingController();
+  final _banheirosController = TextEditingController();
+  final _vagasController = TextEditingController();
+  
+  // Campos do locador
+  final _locadorNomeController = TextEditingController();
+  final _locadorCpfController = TextEditingController();
+  final _locadorTelefoneController = TextEditingController();
+  final _locadorEmailController = TextEditingController();
+  
+  // Campos do locatário
+  final _locatarioNomeController = TextEditingController();
+  final _locatarioCpfController = TextEditingController();
+  final _locatarioTelefoneController = TextEditingController();
+  final _locatarioEmailController = TextEditingController();
   
   // Chaves estrangeiras
   int? _selectedLocadorId;
@@ -128,7 +155,7 @@ class _AddImovelScreenState extends State<AddImovelScreen> {
         _locatarios = locatariosResponse;
       });
     } catch (e) {
-      print('Erro ao carregar locadores/locatários: $e');
+      // Silenciar erro em produção
     }
   }
 
@@ -172,25 +199,15 @@ class _AddImovelScreenState extends State<AddImovelScreen> {
       XFile? imagem;
       
       if (kIsWeb) {
-        // Para web, usar input de arquivo HTML
-        final input = html.FileUploadInputElement();
-        input.accept = 'image/*';
-        input.click();
-        
-        await input.onChange.first;
-        if (input.files?.isNotEmpty == true) {
-          final file = input.files![0];
-          final reader = html.FileReader();
-          reader.readAsDataUrl(file);
-          await reader.onLoad.first;
-          
-          // Criar um XFile a partir do Data URL para web
-          final dataUrl = reader.result as String;
-          final bytes = _dataUrlToBytes(dataUrl);
-          if (bytes != null) {
-            imagem = XFile.fromData(bytes, name: file.name);
-          }
-        }
+        // Para web, mostrar mensagem temporária
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Funcionalidade de imagens em desenvolvimento para web'),
+            backgroundColor: Colors.orange,
+            duration: Duration(seconds: 3),
+          ),
+        );
+        return;
       } else if (Platform.isAndroid || Platform.isIOS) {
         // Para móveis, usar image_picker
         imagem = await _imagePicker.pickImage(
@@ -201,7 +218,7 @@ class _AddImovelScreenState extends State<AddImovelScreen> {
         // Para outras plataformas (Windows/Linux), mostrar mensagem
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Funcionalidade de imagens disponível apenas em dispositivos móveis ou navegador web'),
+            content: Text('Funcionalidade de imagens disponível apenas em dispositivos móveis'),
             backgroundColor: Colors.orange,
             duration: Duration(seconds: 3),
           ),
@@ -489,14 +506,20 @@ class _AddImovelScreenState extends State<AddImovelScreen> {
                 child: SingleChildScrollView(
                   padding: const EdgeInsets.all(24),
                   child: Container(
+                    margin: const EdgeInsets.all(24),
+                    padding: const EdgeInsets.all(24),
                     decoration: BoxDecoration(
                       color: const Color(0xFF4A5568),
-                      borderRadius: BorderRadius.circular(16),
+                      borderRadius: BorderRadius.circular(24),
+                      border: Border.all(
+                        color: Colors.white.withOpacity(0.1),
+                        width: 1,
+                      ),
                       boxShadow: [
                         BoxShadow(
-                          color: Colors.black.withOpacity(0.1),
-                          blurRadius: 10,
-                          offset: const Offset(0, 4),
+                          color: Colors.black.withOpacity(0.2),
+                          blurRadius: 24,
+                          offset: const Offset(0, 12),
                         ),
                       ],
                     ),
@@ -918,42 +941,17 @@ class _AddImovelScreenState extends State<AddImovelScreen> {
 
                 final result = await DatabaseService.addImovel(imovelData);
                 
-                // Se houver imagens, fazer upload
-                if (_imagens.isNotEmpty && result['success']) {
-                  final idImovel = result['data']['id'];
-                  final imageFiles = _imagens.map((xfile) => File(xfile.path)).toList();
-                  
-                  final uploadResult = await ImageService.uploadImagens(idImovel, imageFiles);
-                  
-                  if (!uploadResult['success']) {
-                    // Fechar loading
-                    Navigator.pop(context);
-                    
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text('Imóvel salvo, mas erro ao salvar imagens: ${uploadResult['message']}'),
-                        backgroundColor: Colors.orange,
-                        duration: const Duration(seconds: 3),
-                      ),
-                    );
-                    Navigator.pop(context);
-                    return;
-                  }
-                }
-
-                // Fechar loading
-                Navigator.pop(context);
-                
-                // Mostrar mensagem de sucesso
+                // Imóvel salvo com sucesso
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
-                    content: Text(_imagens.isNotEmpty 
-                      ? 'Imóvel e ${_imagens.length} imagens salvas com sucesso!'
-                      : 'Imóvel salvo com sucesso!'),
+                    content: Text('Imóvel salvo com sucesso!'),
                     backgroundColor: const Color(0xFF3B82F6),
                     duration: const Duration(seconds: 2),
                   ),
                 );
+                
+                // Forçar recarga da UserHubScreen
+                UserHubScreen.refreshData();
                 
                 // Voltar para a tela anterior
                 Navigator.pop(context);

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:sistema_imobiliaria/services/database_service.dart';
+import 'package:sistema_imobiliaria/screens/user_hub_screen.dart';
 
 class AddLocadorScreen extends StatefulWidget {
   const AddLocadorScreen({super.key});
@@ -12,31 +13,13 @@ class _AddLocadorScreenState extends State<AddLocadorScreen> {
   final _formKey = GlobalKey<FormState>();
   final _nameController = TextEditingController();
   final _cpfController = TextEditingController();
-  final _rgController = TextEditingController();
-  final _estadoCivilController = TextEditingController();
-  final _dataNascimentoController = TextEditingController();
-  final _profissaoController = TextEditingController();
-  final _rendaController = TextEditingController();
-  final _cnhController = TextEditingController();
-  final _emailController = TextEditingController();
   final _telefoneController = TextEditingController();
-  final _enderecoController = TextEditingController();
-  final _referenciaController = TextEditingController();
 
   @override
   void dispose() {
     _nameController.dispose();
     _cpfController.dispose();
-    _rgController.dispose();
-    _estadoCivilController.dispose();
-    _dataNascimentoController.dispose();
-    _profissaoController.dispose();
-    _rendaController.dispose();
-    _cnhController.dispose();
-    _emailController.dispose();
     _telefoneController.dispose();
-    _enderecoController.dispose();
-    _referenciaController.dispose();
     super.dispose();
   }
 
@@ -60,215 +43,335 @@ class _AddLocadorScreenState extends State<AddLocadorScreen> {
             children: [
               // Header
               Container(
+                margin: const EdgeInsets.all(24),
                 padding: const EdgeInsets.all(24),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF4A5568),
+                  borderRadius: BorderRadius.circular(24),
+                  border: Border.all(
+                    color: Colors.white.withOpacity(0.1),
+                    width: 1,
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.2),
+                      blurRadius: 24,
+                      offset: const Offset(0, 12),
+                    ),
+                  ],
+                ),
                 child: Row(
                   children: [
-                    IconButton(
-                      onPressed: () => Navigator.pop(context),
-                      icon: const Icon(
-                        Icons.arrow_back,
-                        color: Color(0xFFE2E8F0),
-                        size: 24,
+                    GestureDetector(
+                      onTap: () => Navigator.pop(context),
+                      child: Container(
+                        width: 48,
+                        height: 48,
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF10B981).withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: const Color(0xFF10B981).withOpacity(0.2),
+                            width: 1,
+                          ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: const Color(0xFF10B981).withOpacity(0.15),
+                              blurRadius: 12,
+                              offset: const Offset(0, 6),
+                            ),
+                          ],
+                        ),
+                        child: const Icon(
+                          Icons.arrow_back,
+                          color: Color(0xFF10B981),
+                          size: 24,
+                        ),
                       ),
                     ),
                     const SizedBox(width: 16),
-                    const Text(
-                      'Novo Locador',
-                      style: TextStyle(
-                        fontFamily: 'Inter',
-                        fontSize: 20,
-                        fontWeight: FontWeight.w700,
-                        color: Color(0xFFE2E8F0),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Novo Locador',
+                            style: TextStyle(
+                              fontFamily: 'Inter',
+                              fontSize: 24,
+                              fontWeight: FontWeight.w700,
+                              color: Color(0xFFE2E8F0),
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          const Text(
+                            'Adicionar novo proprietário',
+                            style: TextStyle(
+                              fontFamily: 'Inter',
+                              fontSize: 16,
+                              fontWeight: FontWeight.w500,
+                              color: Color(0xFF9CA3AF),
+                            ),
+                          ),
+                        ],
                       ),
                     ),
-                    const Spacer(),
                     Container(
-                      width: 40,
-                      height: 40,
+                      width: 48,
+                      height: 48,
                       decoration: BoxDecoration(
                         color: const Color(0xFF10B981).withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(10),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: const Color(0xFF10B981).withOpacity(0.2),
+                          width: 1,
+                        ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: const Color(0xFF10B981).withOpacity(0.15),
+                            blurRadius: 12,
+                            offset: const Offset(0, 6),
+                          ),
+                        ],
                       ),
                       child: const Icon(
                         Icons.person_add,
                         color: Color(0xFF10B981),
-                        size: 20,
+                        size: 24,
                       ),
                     ),
                   ],
                 ),
               ),
+              const SizedBox(height: 16),
               // Form
               Expanded(
                 child: SingleChildScrollView(
                   padding: const EdgeInsets.all(24),
                   child: Container(
+                    padding: const EdgeInsets.all(32),
                     decoration: BoxDecoration(
                       color: const Color(0xFF4A5568),
-                      borderRadius: BorderRadius.circular(16),
+                      borderRadius: BorderRadius.circular(24),
+                      border: Border.all(
+                        color: Colors.white.withOpacity(0.1),
+                        width: 1,
+                      ),
                       boxShadow: [
                         BoxShadow(
-                          color: Colors.black.withOpacity(0.1),
-                          blurRadius: 10,
-                          offset: const Offset(0, 4),
+                          color: Colors.black.withOpacity(0.2),
+                          blurRadius: 24,
+                          offset: const Offset(0, 12),
                         ),
                       ],
                     ),
-                    child: Padding(
-                      padding: const EdgeInsets.all(24),
-                      child: Form(
-                        key: _formKey,
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            // Avatar placeholder
-                            Center(
-                              child: Container(
-                                width: 80,
-                                height: 80,
-                                decoration: BoxDecoration(
-                                  color: const Color(0xFF10B981).withOpacity(0.1),
-                                  borderRadius: BorderRadius.circular(40),
+                    child: Form(
+                      key: _formKey,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          // Avatar placeholder
+                          Center(
+                            child: Container(
+                              width: 120,
+                              height: 120,
+                              decoration: BoxDecoration(
+                                color: const Color(0xFF10B981).withOpacity(0.1),
+                                borderRadius: BorderRadius.circular(60),
+                                border: Border.all(
+                                  color: const Color(0xFF10B981).withOpacity(0.2),
+                                  width: 2,
                                 ),
-                                child: const Icon(
-                                  Icons.person_add,
-                                  size: 40,
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: const Color(0xFF10B981).withOpacity(0.15),
+                                    blurRadius: 16,
+                                    offset: const Offset(0, 8),
+                                  ),
+                                ],
+                              ),
+                              child: const Icon(
+                                Icons.person,
+                                color: Color(0xFF10B981),
+                                size: 60,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 32),
+                          // Section title
+                          const Text(
+                            'Dados Pessoais',
+                            style: TextStyle(
+                              fontFamily: 'Inter',
+                              fontSize: 18,
+                              fontWeight: FontWeight.w600,
+                              color: Color(0xFFE2E8F0),
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                          // Form fields
+                          TextFormField(
+                            controller: _nameController,
+                            style: const TextStyle(
+                              fontFamily: 'Inter',
+                              fontSize: 16,
+                              color: Color(0xFFE2E8F0),
+                            ),
+                            decoration: InputDecoration(
+                              labelText: 'Nome Completo',
+                              labelStyle: const TextStyle(
+                                fontFamily: 'Inter',
+                                fontSize: 14,
+                                fontWeight: FontWeight.w500,
+                                color: Color(0xFF9CA3AF),
+                              ),
+                              prefixIcon: const Icon(
+                                Icons.person,
+                                color: Color(0xFF10B981),
+                                size: 20,
+                              ),
+                              filled: true,
+                              fillColor: const Color(0xFF2D3142),
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
+                                borderSide: BorderSide(
+                                  color: Colors.white.withOpacity(0.1),
+                                  width: 1,
+                                ),
+                              ),
+                              enabledBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
+                                borderSide: BorderSide(
+                                  color: Colors.white.withOpacity(0.1),
+                                  width: 1,
+                                ),
+                              ),
+                              focusedBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
+                                borderSide: const BorderSide(
                                   color: Color(0xFF10B981),
+                                  width: 2,
                                 ),
                               ),
                             ),
-                            const SizedBox(height: 32),
-                            // Form fields
-                            _buildSectionTitle('Informações Pessoais'),
-                            const SizedBox(height: 16),
-                            _buildTextField(
-                              controller: _nameController,
-                              label: 'Nome Completo',
-                              hint: 'João Silva',
-                              validator: (value) {
-                                if (value == null || value.isEmpty) {
-                                  return 'Por favor, informe o nome';
-                                }
-                                return null;
-                              },
+                            validator: (value) {
+                              if (value == null || value.isEmpty) {
+                                return 'Por favor, insira o nome';
+                              }
+                              return null;
+                            },
+                          ),
+                          const SizedBox(height: 16),
+                          TextFormField(
+                            controller: _cpfController,
+                            style: const TextStyle(
+                              fontFamily: 'Inter',
+                              fontSize: 16,
+                              color: Color(0xFFE2E8F0),
                             ),
-                            const SizedBox(height: 16),
-                            _buildTextField(
-                              controller: _cpfController,
-                              label: 'CPF',
-                              hint: '123.456.789-00',
-                              validator: (value) {
-                                if (value == null || value.isEmpty) {
-                                  return 'Por favor, informe o CPF';
-                                }
-                                if (value.length > 14) {
-                                  return 'CPF deve ter no máximo 14 caracteres';
-                                }
-                                return null;
-                              },
-                            ),
-                            const SizedBox(height: 16),
-                            _buildTextField(
-                              controller: _enderecoController,
-                              label: 'Endereço Completo',
-                              hint: 'Rua das Flores, 123 - Centro',
-                              validator: (value) {
-                                if (value == null || value.isEmpty) {
-                                  return 'Por favor, informe o endereço';
-                                }
-                                return null;
-                              },
-                            ),
-                            const SizedBox(height: 16),
-                            _buildTextField(
-                              controller: _telefoneController,
-                              label: 'Telefone',
-                              hint: '(61) 9 9123-4567',
-                              keyboardType: TextInputType.phone,
-                              validator: (value) {
-                                if (value == null || value.isEmpty) {
-                                  return 'Por favor, informe o telefone';
-                                }
-                                return null;
-                              },
-                            ),
-                            const SizedBox(height: 16),
-                            _buildTextField(
-                              controller: _emailController,
-                              label: 'Email',
-                              hint: 'joao.silva@email.com',
-                              keyboardType: TextInputType.emailAddress,
-                              validator: (value) {
-                                if (value == null || value.isEmpty) {
-                                  return 'Por favor, informe o email';
-                                }
-                                return null;
-                              },
-                            ),
-                            const SizedBox(height: 24),
-                            _buildSectionTitle('Informações Adicionais'),
-                            const SizedBox(height: 16),
-                            _buildTextField(
-                              controller: _rgController,
-                              label: 'RG',
-                              hint: 'MG-12.345.678',
-                            ),
-                            const SizedBox(height: 16),
-                            Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                const Text(
-                                  'Estado Civil',
-                                  style: TextStyle(
-                                    color: Color(0xFF10B981),
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.w500,
-                                  ),
+                            decoration: InputDecoration(
+                              labelText: 'CPF',
+                              labelStyle: const TextStyle(
+                                fontFamily: 'Inter',
+                                fontSize: 14,
+                                fontWeight: FontWeight.w500,
+                                color: Color(0xFF9CA3AF),
+                              ),
+                              prefixIcon: const Icon(
+                                Icons.badge,
+                                color: Color(0xFF10B981),
+                                size: 20,
+                              ),
+                              filled: true,
+                              fillColor: const Color(0xFF2D3142),
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
+                                borderSide: BorderSide(
+                                  color: Colors.white.withOpacity(0.1),
+                                  width: 1,
                                 ),
-                                const SizedBox(height: 8),
-                                _buildEstadoCivilDropdown(),
-                              ],
+                              ),
+                              enabledBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
+                                borderSide: BorderSide(
+                                  color: Colors.white.withOpacity(0.1),
+                                  width: 1,
+                                ),
+                              ),
+                              focusedBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
+                                borderSide: const BorderSide(
+                                  color: Color(0xFF10B981),
+                                  width: 2,
+                                ),
+                              ),
                             ),
-                            const SizedBox(height: 16),
-                            _buildTextField(
-                              controller: _dataNascimentoController,
-                              label: 'Data de Nascimento',
-                              hint: 'DD/MM/AAAA',
-                              keyboardType: TextInputType.datetime,
+                            validator: (value) {
+                              if (value == null || value.isEmpty) {
+                                return 'Por favor, insira o CPF';
+                              }
+                              return null;
+                            },
+                          ),
+                          const SizedBox(height: 16),
+                          TextFormField(
+                            controller: _telefoneController,
+                            style: const TextStyle(
+                              fontFamily: 'Inter',
+                              fontSize: 16,
+                              color: Color(0xFFE2E8F0),
                             ),
-                            const SizedBox(height: 16),
-                            _buildTextField(
-                              controller: _profissaoController,
-                              label: 'Profissão',
-                              hint: 'Engenheiro, Médico, etc.',
+                            decoration: InputDecoration(
+                              labelText: 'Telefone',
+                              labelStyle: const TextStyle(
+                                fontFamily: 'Inter',
+                                fontSize: 14,
+                                fontWeight: FontWeight.w500,
+                                color: Color(0xFF9CA3AF),
+                              ),
+                              prefixIcon: const Icon(
+                                Icons.phone,
+                                color: Color(0xFF10B981),
+                                size: 20,
+                              ),
+                              filled: true,
+                              fillColor: const Color(0xFF2D3142),
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
+                                borderSide: BorderSide(
+                                  color: Colors.white.withOpacity(0.1),
+                                  width: 1,
+                                ),
+                              ),
+                              enabledBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
+                                borderSide: BorderSide(
+                                  color: Colors.white.withOpacity(0.1),
+                                  width: 1,
+                                ),
+                              ),
+                              focusedBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
+                                borderSide: const BorderSide(
+                                  color: Color(0xFF10B981),
+                                  width: 2,
+                                ),
+                              ),
                             ),
-                            const SizedBox(height: 16),
-                            _buildTextField(
-                              controller: _rendaController,
-                              label: 'Renda Mensal',
-                              hint: 'R\$ 5.000,00',
-                              keyboardType: TextInputType.number,
-                            ),
-                            const SizedBox(height: 24),
-                            _buildSectionTitle('Documentação'),
-                            const SizedBox(height: 16),
-                            _buildTextField(
-                              controller: _cnhController,
-                              label: 'CNH',
-                              hint: '12345678901',
-                            ),
-                            const SizedBox(height: 16),
-                            _buildTextField(
-                              controller: _referenciaController,
-                              label: 'Referência Comercial',
-                              hint: 'Nome e telefone de referência',
-                              maxLines: 2,
-                            ),
-                            const SizedBox(height: 32),
-                            // Botão de salvar
-                            _buildSaveButton(),
-                          ],
-                        ),
+                            validator: (value) {
+                              if (value == null || value.isEmpty) {
+                                return 'Por favor, insira o telefone';
+                              }
+                              return null;
+                            },
+                          ),
+                          const SizedBox(height: 32),
+                          // Save button
+                          SizedBox(
+                            width: double.infinity,
+                            child: _buildSaveButton(),
+                          ),
+                        ],
                       ),
                     ),
                   ),
@@ -281,187 +384,115 @@ class _AddLocadorScreenState extends State<AddLocadorScreen> {
     );
   }
 
-  Widget _buildSectionTitle(String title) {
-    return Text(
-      title,
-      style: const TextStyle(
-        fontFamily: 'Inter',
-        fontSize: 16,
-        fontWeight: FontWeight.w600,
-        color: Color(0xFFE2E8F0),
-      ),
-    );
-  }
-
-  Widget _buildTextField({
-    required TextEditingController controller,
-    required String label,
-    required String hint,
-    TextInputType? keyboardType,
-    String? Function(String?)? validator,
-    int? maxLines,
-  }) {
-    return TextFormField(
-      controller: controller,
-      keyboardType: keyboardType,
-      maxLines: maxLines ?? 1,
-      decoration: InputDecoration(
-        labelText: label,
-        hintText: hint,
-        labelStyle: const TextStyle(color: Color(0xFF10B981)),
-        hintStyle: TextStyle(color: const Color(0xFF9CA3AF).withOpacity(0.7)),
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: Color(0xFF4A5568), width: 1),
-        ),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: Color(0xFF4A5568), width: 1),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: Color(0xFF10B981), width: 2),
-        ),
-        filled: true,
-        fillColor: const Color(0xFF2D3142),
-      ),
-      style: const TextStyle(color: Color(0xFFE2E8F0)),
-      validator: validator,
-    );
-  }
-
-  Widget _buildEstadoCivilDropdown() {
-    final estadosCivis = [
-      'Solteiro(a)',
-      'Casado(a)',
-      'Divorciado(a)',
-      'Viúvo(a)',
-      'Separado(a)',
-      'União Estável'
-    ];
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      decoration: BoxDecoration(
-        border: Border.all(color: const Color(0xFF4A5568), width: 1),
-        borderRadius: BorderRadius.circular(12),
-        color: const Color(0xFF2D3142),
-      ),
-      child: DropdownButtonHideUnderline(
-        child: DropdownButton<String>(
-          value: _estadoCivilController.text.isEmpty ? null : _estadoCivilController.text,
-          hint: const Text(
-            'Selecione o estado civil',
-            style: TextStyle(color: Color(0xFF6B7280)),
-          ),
-          dropdownColor: const Color(0xFF2D3142),
-          style: const TextStyle(color: Color(0xFFE2E8F0)),
-          icon: const Icon(
-            Icons.arrow_drop_down,
-            color: Color(0xFF9CA3AF),
-          ),
-          isExpanded: true,
-          items: estadosCivis.map((String estado) {
-            return DropdownMenuItem<String>(
-              value: estado,
-              child: Text(estado),
-            );
-          }).toList(),
-          onChanged: (String? newValue) {
-            setState(() {
-              _estadoCivilController.text = newValue ?? '';
-            });
-          },
-        ),
-      ),
-    );
-  }
-
   Widget _buildSaveButton() {
     return Container(
-      width: double.infinity,
       decoration: BoxDecoration(
         color: const Color(0xFF10B981),
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: Colors.white.withOpacity(0.1),
+          width: 1,
+        ),
         boxShadow: [
           BoxShadow(
             color: const Color(0xFF10B981).withOpacity(0.3),
-            blurRadius: 12,
-            offset: const Offset(0, 4),
+            blurRadius: 20,
+            offset: const Offset(0, 8),
           ),
         ],
       ),
       child: Material(
         color: Colors.transparent,
         child: InkWell(
-          onTap: () async {
-            if (_formKey.currentState!.validate()) {
-              // Salvar dados no banco
-              final locadorData = {
-                'nome': _nameController.text,
-                'cpf': _cpfController.text,
-                'rg': _rgController.text,
-                'estado_civil': _estadoCivilController.text,
-                'dataNascimento': _dataNascimentoController.text,
-                'profissao': _profissaoController.text,
-                'renda': _rendaController.text,
-                'cnh': _cnhController.text,
-                'email': _emailController.text,
-                'telefone': _telefoneController.text,
-                'endereco': _enderecoController.text,
-                'referencia': _referenciaController.text,
-              };
-
-              try {
-                await DatabaseService.addLocador(locadorData);
-                
-                // Mostrar mensagem de sucesso
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Locador salvo com sucesso!'),
-                    backgroundColor: Color(0xFF10B981),
-                    duration: Duration(seconds: 2),
-                  ),
-                );
-                
-                // Voltar para a tela anterior
-                Navigator.pop(context);
-              } catch (e) {
-                // Mostrar mensagem de erro específica
-                String errorMessage = 'Erro ao salvar locador!';
-                
-                if (e.toString().contains('duplicate_cpf') || 
-                    e.toString().contains('CPF já cadastrado')) {
-                  errorMessage = 'CPF já cadastrado no sistema!';
-                }
-                
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text(errorMessage),
-                    backgroundColor: Colors.red,
-                    duration: Duration(seconds: 3),
-                  ),
-                );
-              }
-            }
-          },
-          borderRadius: BorderRadius.circular(12),
-          child: const Padding(
-            padding: EdgeInsets.symmetric(vertical: 16),
-            child: Center(
-              child: Text(
-                'Salvar Locador',
-                style: TextStyle(
-                  fontFamily: 'Inter',
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600,
+          onTap: _saveLocador,
+          borderRadius: BorderRadius.circular(16),
+          splashColor: Colors.white.withOpacity(0.2),
+          highlightColor: Colors.white.withOpacity(0.1),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(
+                  Icons.save,
                   color: Colors.white,
+                  size: 20,
                 ),
-              ),
+                const SizedBox(width: 12),
+                const Text(
+                  'Salvar Locador',
+                  style: TextStyle(
+                    fontFamily: 'Inter',
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.white,
+                  ),
+                ),
+              ],
             ),
           ),
         ),
       ),
     );
+  }
+
+  Future<void> _saveLocador() async {
+    if (!_formKey.currentState!.validate()) {
+      return;
+    }
+
+    try {
+      final locadorData = {
+        'nome': _nameController.text,
+        'cpf': _cpfController.text,
+        'telefone': _telefoneController.text,
+        'data_cadastro': DateTime.now().toIso8601String(),
+      };
+
+      await DatabaseService.addLocador(locadorData);
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                const Icon(Icons.check_circle, color: Colors.white),
+                const SizedBox(width: 8),
+                Text('Locador salvo com sucesso!'),
+              ],
+            ),
+            backgroundColor: const Color(0xFF10B981),
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+          ),
+        );
+        
+        // Forçar recarga da UserHubScreen
+        UserHubScreen.refreshData();
+        
+        Navigator.pop(context);
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                const Icon(Icons.error, color: Colors.white),
+                const SizedBox(width: 8),
+                Text('Erro ao salvar locador: $e'),
+              ],
+            ),
+            backgroundColor: Colors.red,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+          ),
+        );
+      }
+    }
   }
 }

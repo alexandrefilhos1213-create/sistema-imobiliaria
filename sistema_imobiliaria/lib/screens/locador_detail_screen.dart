@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:sistema_imobiliaria/services/database_service.dart';
 import 'package:sistema_imobiliaria/screens/user_hub_screen.dart';
+import 'package:sistema_imobiliaria/screens/edit_locador_screen.dart';
 
 class LocadorDetailScreen extends StatefulWidget {
   final Map<String, dynamic> locador;
@@ -254,6 +255,33 @@ class _LocadorDetailScreenState extends State<LocadorDetailScreen> {
             ],
           ),
         ),
+      ),
+      floatingActionButton: Column(
+        mainAxisAlignment: MainAxisAlignment.end,
+        children: [
+          FloatingActionButton(
+            heroTag: "edit_locador",
+            onPressed: _editLocador,
+            backgroundColor: const Color(0xFF10B981),
+            child: const Icon(Icons.edit, color: Colors.white),
+          ),
+          const SizedBox(height: 16),
+          FloatingActionButton(
+            heroTag: "delete_locador",
+            onPressed: _showDeleteConfirmation,
+            backgroundColor: const Color(0xFFEF4444),
+            child: const Icon(Icons.delete, color: Colors.white),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _editLocador() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => EditLocadorScreen(locador: locador),
       ),
     );
   }

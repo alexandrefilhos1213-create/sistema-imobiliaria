@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:sistema_imobiliaria/services/database_service.dart';
 import 'package:sistema_imobiliaria/screens/user_hub_screen.dart';
+import 'package:sistema_imobiliaria/screens/edit_locatario_screen.dart';
 
 class LocatarioDetailScreen extends StatefulWidget {
   final Map<String, dynamic> locatario;
@@ -254,6 +255,33 @@ class _LocatarioDetailScreenState extends State<LocatarioDetailScreen> {
             ],
           ),
         ),
+      ),
+      floatingActionButton: Column(
+        mainAxisAlignment: MainAxisAlignment.end,
+        children: [
+          FloatingActionButton(
+            heroTag: "edit_locatario",
+            onPressed: _editLocatario,
+            backgroundColor: const Color(0xFFF59E0B),
+            child: const Icon(Icons.edit, color: Colors.white),
+          ),
+          const SizedBox(height: 16),
+          FloatingActionButton(
+            heroTag: "delete_locatario",
+            onPressed: _showDeleteConfirmation,
+            backgroundColor: const Color(0xFFEF4444),
+            child: const Icon(Icons.delete, color: Colors.white),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _editLocatario() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => EditLocatarioScreen(locatario: locatario),
       ),
     );
   }

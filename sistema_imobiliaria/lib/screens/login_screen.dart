@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:sistema_imobiliaria/config/api_config.dart';
+import 'package:sistema_imobiliaria/services/auth_service.dart';
 import 'package:sistema_imobiliaria/theme/app_theme.dart';
 import 'package:sistema_imobiliaria/screens/user_hub_screen.dart';
 
@@ -81,6 +82,19 @@ class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin
       if (!mounted) return;
 
       if (response.statusCode == 200) {
+        // Parse da resposta
+        final responseData = jsonDecode(response.body);
+        
+        if (responseData['success'] == true && responseData['token'] != null) {
+          // Salvar token de autenticação
+          await AuthService.saveToken(
+            responseData['token'],
+            userId: responseData['usuario']?['id'],
+            email: responseData['usuario']?['login'],
+            name: responseData['usuario']?['nome'],
+          );
+        }
+        
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Login realizado com sucesso!')),
         );

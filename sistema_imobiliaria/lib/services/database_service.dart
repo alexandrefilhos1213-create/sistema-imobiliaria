@@ -3,6 +3,7 @@ import 'dart:io';
 import 'dart:async';
 import 'package:http/http.dart' as http;
 import 'package:sistema_imobiliaria/config/api_config.dart';
+import 'package:sistema_imobiliaria/services/auth_service.dart';
 import 'package:logger/logger.dart';
 
 class DatabaseService {
@@ -64,11 +65,20 @@ class DatabaseService {
       }
 
       http.Response response;
-      final headers = {
+      
+      // Obter token de autenticação (se disponível)
+      final token = AuthService.getTokenSync();
+      
+      final headers = <String, String>{
         'Content-Type': 'application/json',
         'Accept': 'application/json',
         'Access-Control-Allow-Origin': '*',
       };
+      
+      // Adicionar token de autenticação se disponível
+      if (token != null && token.isNotEmpty) {
+        headers['Authorization'] = 'Bearer $token';
+      }
 
       switch (method.toUpperCase()) {
         case 'GET':
@@ -356,6 +366,25 @@ class DatabaseService {
     }
   }
 
+  // Obter imóvel por ID
+  static Future<Map<String, dynamic>?> getImovelById(String id) async {
+    try {
+      final response = await _makeRequest('GET', '/imoveis/$id');
+      final imovel = Map<String, dynamic>.from(response['data']);
+      _ensureCompatibility(imovel);
+      return imovel;
+    } catch (e) {
+      // Fallback para busca local
+      try {
+        final found = _imoveis.firstWhere((imovel) => imovel['id'] == id);
+        _ensureCompatibility(found);
+        return found;
+      } catch (e) {
+        return null;
+      }
+    }
+  }
+
   // Atualizar locador
   static Future<void> updateLocador(String id, Map<String, dynamic> data) async {
     try {
@@ -499,6 +528,30 @@ class DatabaseService {
     _locadores.clear();
     _locatarios.clear();
     _logger.i('Dados locais limpos');
+  }
+
+  // Atualizar Imóvel
+  static Future<void> updateImovel(String id, Map<String, dynamic> data) async {
+    try {
+      await _makeRequest('PUT', '/imoveis/$id', body: data);
+      
+      // Atualizar cache local
+      final index = _imoveis.indexWhere((imovel) => imovel['id'] == id);
+      if (index != -1) {
+        _imoveis[index] = {..._imoveis[index], ...data};
+        _imoveis[index]['updatedAt'] = DateTime.now().toIso8601String();
+      }
+      
+      _logger.i('Imóvel atualizado: $id');
+    } catch (e) {
+      // Fallback para modo local
+      final index = _imoveis.indexWhere((imovel) => imovel['id'] == id);
+      if (index != -1) {
+        _imoveis[index] = {..._imoveis[index], ...data};
+        _imoveis[index]['updatedAt'] = DateTime.now().toIso8601String();
+        _logger.w('Imóvel atualizado localmente: $id', error: e);
+      }
+    }
   }
 
   // Excluir Imóvel

@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:http/http.dart' as http;
 import 'package:flutter/foundation.dart';
 import '../config/api_config.dart';
+import 'auth_service.dart';
 
 class ImageService {
   static String get baseUrl => ApiConfig.baseUrl;
@@ -14,6 +15,12 @@ class ImageService {
         'POST',
         Uri.parse('$baseUrl/imoveis/$idImovel/imagens'),
       );
+      
+      // Adicionar token de autenticação
+      final token = AuthService.getTokenSync();
+      if (token != null && token.isNotEmpty) {
+        request.headers['Authorization'] = 'Bearer $token';
+      }
 
       // Adicionar todas as imagens ao request
       for (int i = 0; i < imagens.length; i++) {
@@ -57,8 +64,16 @@ class ImageService {
   // Buscar imagens de um imóvel
   static Future<Map<String, dynamic>> getImagens(int idImovel) async {
     try {
+      final token = AuthService.getTokenSync();
+      final headers = <String, String>{};
+      
+      if (token != null && token.isNotEmpty) {
+        headers['Authorization'] = 'Bearer $token';
+      }
+      
       final response = await http.get(
         Uri.parse('$baseUrl/imoveis/$idImovel/imagens'),
+        headers: headers,
       );
 
       if (response.statusCode == 200) {
@@ -86,8 +101,16 @@ class ImageService {
   // Remover uma imagem
   static Future<Map<String, dynamic>> removerImagem(int idImagem) async {
     try {
+      final token = AuthService.getTokenSync();
+      final headers = <String, String>{};
+      
+      if (token != null && token.isNotEmpty) {
+        headers['Authorization'] = 'Bearer $token';
+      }
+      
       final response = await http.delete(
         Uri.parse('$baseUrl/imoveis-imagens/$idImagem'),
+        headers: headers,
       );
 
       if (response.statusCode == 200) {

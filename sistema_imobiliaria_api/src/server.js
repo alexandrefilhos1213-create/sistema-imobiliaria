@@ -6,15 +6,65 @@ const { Pool } = require('pg');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
+const bcrypt = require('bcrypt');
+const jwt = require('jsonwebtoken');
 
 const app = express();
 
-// CORS permitido para todos os origins (temporário para debug)
+// CORS configurado com origens permitidas
+const allowedOrigins = process.env.ALLOWED_ORIGINS 
+  ? process.env.ALLOWED_ORIGINS.split(',')
+  : ['http://localhost:3000', 'http://localhost:8080', 'https://sistema-imobiliaria.onrender.com'];
+
 app.use(cors({
-  origin: '*',
-  credentials: true
+  origin: function (origin, callback) {
+    // Permitir requisições sem origin (mobile apps, Postman, etc)
+    if (!origin) return callback(null, true);
+    
+    if (allowedOrigins.indexOf(origin) !== -1 || process.env.NODE_ENV === 'development') {
+      callback(null, true);
+    } else {
+      callback(new Error('Não permitido pelo CORS'));
+    }
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
 }));
-app.use(express.json());
+
+// Compressão de respostas
+const compression = require('compression');
+app.use(compression());
+
+// Rate limiting
+const rateLimit = require('express-rate-limit');
+
+const limiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutos
+  max: 100, // máximo 100 requisições por IP
+  message: {
+    success: false,
+    message: 'Muitas requisições deste IP, tente novamente mais tarde.'
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+const strictLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10, // máximo 10 requisições para rotas críticas
+  message: {
+    success: false,
+    message: 'Muitas tentativas. Tente novamente mais tarde.'
+  }
+});
+
+app.use('/api/', limiter);
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+
+// Validator para validação de dados
+const validator = require('validator');
 
 // Configurar pasta de uploads
 const uploadsDir = path.join(__dirname, '../uploads');
@@ -37,16 +87,24 @@ const upload = multer({
   storage: storage,
   limits: {
     fileSize: 5 * 1024 * 1024, // 5MB por imagem
+    files: 20 // máximo 20 arquivos por requisição
   },
   fileFilter: (req, file, cb) => {
-    const allowedTypes = /jpeg|jpg|png|gif|webp/;
-    const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
-    const mimetype = allowedTypes.test(file.mimetype);
+    // Validar extensão
+    const allowedExtensions = ['.jpeg', '.jpg', '.png', '.gif', '.webp'];
+    const ext = path.extname(file.originalname).toLowerCase();
     
-    if (mimetype && extname) {
+    // Validar mimetype
+    const allowedMimeTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp'];
+    
+    if (allowedExtensions.includes(ext) && allowedMimeTypes.includes(file.mimetype)) {
+      // Validar que o arquivo não seja vazio
+      if (file.size === 0) {
+        return cb(new Error('Arquivo vazio não é permitido'));
+      }
       return cb(null, true);
     } else {
-      cb(new Error('Apenas imagens são permitidas (JPEG, JPG, PNG, GIF, WebP)'));
+      cb(new Error(`Tipo de arquivo não permitido. Apenas imagens são aceitas (JPEG, JPG, PNG, GIF, WebP). Recebido: ${file.mimetype}`));
     }
   }
 });
@@ -100,9 +158,39 @@ const pool = new Pool({
   application_name: 'sistema_imobiliaria_api'
 });
 
-// Middleware de logging
+// Funções de validação
+function validateCPF(cpf) {
+  if (!cpf) return false;
+  // Remove caracteres não numéricos
+  const cleanCPF = cpf.replace(/\D/g, '');
+  // Valida tamanho (11 dígitos) ou formato com máscara (14 caracteres)
+  return cleanCPF.length === 11 || cpf.length <= 14;
+}
+
+function validateEmail(email) {
+  return email ? validator.isEmail(email) : true; // Email opcional
+}
+
+function validateRequired(value, fieldName) {
+  if (!value || (typeof value === 'string' && value.trim() === '')) {
+    throw new Error(`Campo obrigatório: ${fieldName}`);
+  }
+}
+
+function sanitizeString(str) {
+  if (!str) return str;
+  return validator.escape(str.trim());
+}
+
+// Middleware de logging (sem dados sensíveis)
 app.use((req, res, next) => {
-  console.log(`${new Date().toISOString()} - ${req.method} ${req.path}`);
+  const logData = {
+    timestamp: new Date().toISOString(),
+    method: req.method,
+    path: req.path,
+    ip: req.ip
+  };
+  console.log(JSON.stringify(logData));
   next();
 });
 
@@ -112,28 +200,45 @@ app.use((req, res, next) => {
   next();
 });
 
-// Função para corrigir encoding UTF-8
+// Função para corrigir encoding UTF-8 de forma mais robusta
 function fixUTF8Encoding(text) {
-  if (!text) return text;
+  if (!text || typeof text !== 'string') return text;
   
-  // Converter buffer para string com encoding correto
-  const buffer = Buffer.from(text, 'latin1');
-  return buffer.toString('utf8');
+  try {
+    // Tentar detectar se já está em UTF-8 válido
+    const utf8Bytes = Buffer.from(text, 'utf8');
+    const originalBytes = Buffer.from(text, 'latin1');
+    
+    // Se os bytes são idênticos, provavelmente já está correto
+    if (utf8Bytes.equals(originalBytes)) {
+      return text;
+    }
+    
+    // Tentar converter de latin1 para utf8
+    return Buffer.from(text, 'latin1').toString('utf8');
+  } catch (error) {
+    // Se falhar, retornar original
+    console.warn('Erro ao corrigir encoding:', error.message);
+    return text;
+  }
 }
 
-// Função para corrigir encoding em objetos
+// Função para corrigir encoding em objetos recursivamente
 function fixObjectEncoding(obj) {
   if (!obj) return obj;
   
+  // Strings
   if (typeof obj === 'string') {
     return fixUTF8Encoding(obj);
   }
   
+  // Arrays
   if (Array.isArray(obj)) {
     return obj.map(item => fixObjectEncoding(item));
   }
   
-  if (typeof obj === 'object') {
+  // Objetos
+  if (typeof obj === 'object' && obj.constructor === Object) {
     const fixed = {};
     for (const [key, value] of Object.entries(obj)) {
       fixed[key] = fixObjectEncoding(value);
@@ -141,7 +246,62 @@ function fixObjectEncoding(obj) {
     return fixed;
   }
   
+  // Tipos primitivos ou objetos complexos (Date, etc)
   return obj;
+}
+
+// Configuração JWT
+const JWT_SECRET = process.env.JWT_SECRET || 'sua-chave-secreta-super-segura-mude-em-producao-minimo-32-caracteres';
+const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '24h';
+
+// Middleware de autenticação JWT
+function authenticateToken(req, res, next) {
+  const authHeader = req.headers['authorization'];
+  const token = authHeader && authHeader.split(' ')[1]; // "Bearer TOKEN"
+
+  if (!token) {
+    return res.status(401).json({
+      success: false,
+      message: 'Token de autenticação não fornecido. Faça login primeiro.',
+    });
+  }
+
+  jwt.verify(token, JWT_SECRET, (err, decoded) => {
+    if (err) {
+      if (err.name === 'TokenExpiredError') {
+        return res.status(401).json({
+          success: false,
+          message: 'Token expirado. Faça login novamente.',
+        });
+      }
+      return res.status(403).json({
+        success: false,
+        message: 'Token inválido ou corrompido.',
+      });
+    }
+
+    // Adiciona dados do usuário na requisição
+    req.user = decoded;
+    next(); // Continua para a próxima função
+  });
+}
+
+// Middleware opcional - tenta autenticar mas não bloqueia se não tiver token
+// Útil para rotas que funcionam com ou sem autenticação
+function optionalAuthenticate(req, res, next) {
+  const authHeader = req.headers['authorization'];
+  const token = authHeader && authHeader.split(' ')[1];
+
+  if (token) {
+    jwt.verify(token, JWT_SECRET, (err, decoded) => {
+      if (!err) {
+        req.user = decoded;
+      }
+      next();
+    });
+  } else {
+    next();
+  }
 }
 
 app.get('/', (req, res) => {
@@ -163,7 +323,13 @@ app.post('/login', async (req, res) => {
 
     const client = await pool.connect();
     try {
-      const queryText = `SELECT id, nome, ${USER_LOGIN_FIELD} AS login, ${USER_PASSWORD_FIELD} AS senha
+      // Buscar usuário - tenta buscar campo de senha hash primeiro, depois fallback para senha
+      const queryText = `SELECT 
+                          id, 
+                          nome, 
+                          ${USER_LOGIN_FIELD} AS login, 
+                          ${USER_PASSWORD_FIELD} AS senha,
+                          COALESCE(senha_hash, NULL) AS senha_hash
                          FROM ${USERS_TABLE}
                          WHERE ${USER_LOGIN_FIELD} = $1
                          LIMIT 1`;
@@ -178,20 +344,52 @@ app.post('/login', async (req, res) => {
       }
 
       const usuarioDB = result.rows[0];
+      let senhaValida = false;
 
-      // TODO: Implementar hash de senha (bcrypt) em produção
-      // Por enquanto, mantemos comparação direta para compatibilidade
-      if (usuarioDB.senha !== senha) {
+      // Verificar se tem senha_hash (novo sistema) ou senha (sistema antigo)
+      if (usuarioDB.senha_hash) {
+        // Sistema novo: usar bcrypt
+        try {
+          senhaValida = await bcrypt.compare(senha, usuarioDB.senha_hash);
+        } catch (bcryptError) {
+          console.error('Erro ao comparar senha com bcrypt:', bcryptError.message);
+          return res.status(500).json({
+            success: false,
+            message: 'Erro ao validar credenciais.',
+          });
+        }
+      } else {
+        // Sistema antigo: comparação direta (compatibilidade retroativa)
+        senhaValida = usuarioDB.senha === senha;
+        
+        // Se login bem-sucedido com senha antiga, oferecer migração (opcional)
+        // Por enquanto apenas logamos para referência futura
+        if (senhaValida) {
+          console.log(`Usuário ${usuarioDB.id} fez login com senha em texto plano. Considere migrar para hash.`);
+        }
+      }
+
+      if (!senhaValida) {
         return res.status(401).json({
           success: false,
           message: 'Credenciais inválidas.',
         });
       }
 
-      // TODO: Implementar JWT em produção
+      // Gerar token JWT
+      const tokenPayload = {
+        userId: usuarioDB.id,
+        email: usuarioDB.login,
+        nome: usuarioDB.nome,
+      };
+
+      const token = jwt.sign(tokenPayload, JWT_SECRET, {
+        expiresIn: JWT_EXPIRES_IN,
+      });
+
       return res.json({
         success: true,
-        token: 'temp-token-${Date.now()}-${usuarioDB.id}',
+        token: token,
         usuario: {
           id: usuarioDB.id,
           nome: usuarioDB.nome,
@@ -202,7 +400,7 @@ app.post('/login', async (req, res) => {
       client.release();
     }
   } catch (error) {
-    console.error('Erro na rota /login:', error);
+    console.error('Erro na rota /login:', error.message);
     return res.status(500).json({
       success: false,
       message: 'Erro interno no servidor.',
@@ -210,21 +408,45 @@ app.post('/login', async (req, res) => {
   }
 });
 
-// GET - Listar todos os locadores
+// GET - Listar todos os locadores (com paginação)
+// Rota pública - não requer autenticação para listar
 app.get('/locadores', async (req, res) => {
   try {
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 50;
+    const offset = (page - 1) * limit;
+
+    // Validar limites
+    const validLimit = Math.min(Math.max(limit, 1), 100); // Entre 1 e 100
+    const validPage = Math.max(page, 1);
+
     const client = await pool.connect();
     try {
-      const result = await client.query('SELECT * FROM locadores ORDER BY nome');
+      // Contar total de registros
+      const countResult = await client.query('SELECT COUNT(*) FROM locadores');
+      const total = parseInt(countResult.rows[0].count);
+
+      // Buscar registros paginados
+      const result = await client.query(
+        'SELECT * FROM locadores ORDER BY nome LIMIT $1 OFFSET $2',
+        [validLimit, offset]
+      );
+
       res.json({
         success: true,
         data: fixObjectEncoding(result.rows),
+        pagination: {
+          page: validPage,
+          limit: validLimit,
+          total,
+          totalPages: Math.ceil(total / validLimit)
+        }
       });
     } finally {
       client.release();
     }
   } catch (error) {
-    console.error('Erro ao listar locadores:', error);
+    console.error('Erro ao listar locadores:', error.message);
     res.status(500).json({
       success: false,
       message: 'Erro ao listar locadores',
@@ -232,12 +454,9 @@ app.get('/locadores', async (req, res) => {
   }
 });
 
-// POST - Criar locador
-app.post('/locadores', async (req, res) => {
+// POST - Criar locador (requer autenticação)
+app.post('/locadores', authenticateToken, strictLimiter, async (req, res) => {
   try {
-    console.log('=== DEBUG BACKEND: Recebendo requisição POST /locadores ===');
-    console.log('Body recebido:', JSON.stringify(req.body, null, 2));
-    
     const { 
       nome, 
       cpf, 
@@ -253,23 +472,55 @@ app.post('/locadores', async (req, res) => {
       referencia
     } = req.body || {};
 
-    console.log('Dados extraídos:', { nome, cpf, rg, estado_civil, profissao, endereco, dataNascimento, renda, cnh, email, telefone, referencia });
-
-    if (!nome || !cpf) {
-      console.log('ERRO: Nome ou CPF ausentes');
+    // Validação de campos obrigatórios
+    try {
+      validateRequired(nome, 'nome');
+      validateRequired(cpf, 'cpf');
+    } catch (error) {
       return res.status(400).json({
         success: false,
-        message: 'Nome e CPF são obrigatórios',
+        message: error.message,
+      });
+    }
+
+    // Validação de CPF
+    if (!validateCPF(cpf)) {
+      return res.status(400).json({
+        success: false,
+        message: 'CPF inválido',
       });
     }
 
     if (cpf.length > 14) {
-      console.log('ERRO: CPF muito longo', { cpf, length: cpf.length });
       return res.status(400).json({
         success: false,
         message: 'CPF deve ter no máximo 14 caracteres',
       });
     }
+
+    // Validação de email (se fornecido)
+    if (email && !validateEmail(email)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Email inválido',
+      });
+    }
+
+    // Sanitização de dados
+    const sanitizedData = {
+      nome: sanitizeString(nome),
+      cpf: sanitizeString(cpf),
+      rg: rg ? sanitizeString(rg) : null,
+      estado_civil: estado_civil ? sanitizeString(estado_civil) : null,
+      profissao: profissao ? sanitizeString(profissao) : null,
+      endereco: endereco ? sanitizeString(endereco) : null,
+      dataNascimento: dataNascimento || null,
+      renda: renda || null,
+      cnh: cnh ? sanitizeString(cnh) : null,
+      email: email ? validator.normalizeEmail(email) : null,
+      telefone: telefone ? sanitizeString(telefone) : null,
+      referencia: referencia ? sanitizeString(referencia) : null
+    };
 
     const client = await pool.connect();
     try {
@@ -279,29 +530,31 @@ app.post('/locadores', async (req, res) => {
           data_nascimento, renda, cnh, email, telefone, referencia
         ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING *`,
         [
-          nome, cpf, rg, estado_civil, profissao, endereco,
-          dataNascimento, renda, cnh, email, telefone, referencia
+          sanitizedData.nome, 
+          sanitizedData.cpf, 
+          sanitizedData.rg, 
+          sanitizedData.estado_civil, 
+          sanitizedData.profissao, 
+          sanitizedData.endereco,
+          sanitizedData.dataNascimento, 
+          sanitizedData.renda, 
+          sanitizedData.cnh, 
+          sanitizedData.email, 
+          sanitizedData.telefone, 
+          sanitizedData.referencia
         ]
       );
 
-      console.log('Locador criado com sucesso:', result.rows[0]);
       res.json({
         success: true,
-        data: result.rows[0],
+        data: fixObjectEncoding(result.rows[0]),
       });
     } finally {
       client.release();
     }
-  } catch (error) {
-    console.log('=== ERRO DETALHADO AO CRIAR LOCADOR ===');
-    console.log('Erro completo:', error);
-    console.log('Mensagem:', error.message);
-    console.log('Stack:', error.stack);
-    console.log('=== FIM ERRO ===');
-    
+    } catch (error) {
     // Tratar CPF duplicado
     if (error.code === '23505' && error.constraint === 'locadores_cpf_key') {
-      console.log('ERRO: CPF duplicado detectado');
       return res.status(400).json({
         success: false,
         message: 'CPF já cadastrado no sistema',
@@ -309,7 +562,7 @@ app.post('/locadores', async (req, res) => {
       });
     }
     
-    console.error('Erro ao criar locador:', error);
+    console.error('Erro ao criar locador:', error.message);
     res.status(500).json({
       success: false,
       message: 'Erro ao criar locador',
@@ -317,8 +570,8 @@ app.post('/locadores', async (req, res) => {
   }
 });
 
-// PUT - Atualizar locador
-app.put('/locadores/:id', async (req, res) => {
+// PUT - Atualizar locador (requer autenticação)
+app.put('/locadores/:id', authenticateToken, async (req, res) => {
   try {
     const { id } = req.params;
     const { nome, cpf, rg, estado_civil, profissao, endereco } = req.body || {};
@@ -353,44 +606,41 @@ app.put('/locadores/:id', async (req, res) => {
   }
 });
 
-// DELETE - Excluir locador
-app.delete('/locadores/:id', async (req, res) => {
+// DELETE - Excluir locador (requer autenticação)
+app.delete('/locadores/:id', authenticateToken, strictLimiter, async (req, res) => {
   try {
     const { id } = req.params;
-    console.log('=== DEBUG: Excluindo locador ===');
-    console.log('ID recebido:', id);
-    console.log('Tipo do ID:', typeof id);
+
+    // Validar ID
+    if (!id || isNaN(parseInt(id))) {
+      return res.status(400).json({
+        success: false,
+        message: 'ID inválido',
+      });
+    }
 
     const client = await pool.connect();
     try {
-      // Primeiro verificar se o locador existe
-      console.log('Verificando se locador ID:', id, 'existe...');
+      // Verificar se o locador existe
       const checkResult = await client.query('SELECT id, nome FROM locadores WHERE id = $1', [id]);
-      console.log('Resultado da consulta:', checkResult.rowCount, 'registros encontrados');
       
       if (checkResult.rowCount === 0) {
-        console.log('Locador não encontrado - ID:', id);
         return res.status(404).json({
           success: false,
           message: 'Locador não encontrado',
         });
       }
-
-      console.log('Locador encontrado:', checkResult.rows[0]);
       
       // Excluir locador
       const result = await client.query('DELETE FROM locadores WHERE id = $1', [id]);
-      console.log('Resultado da exclusão:', result.rowCount, 'registros afetados');
 
       if (result.rowCount === 0) {
-        console.log('Nenhum registro foi excluído - ID:', id);
         return res.status(404).json({
           success: false,
           message: 'Locador não encontrado',
         });
       }
 
-      console.log('Locador excluído com sucesso - ID:', id);
       res.json({
         success: true,
         message: 'Locador excluído com sucesso',
@@ -403,8 +653,7 @@ app.delete('/locadores/:id', async (req, res) => {
       client.release();
     }
   } catch (error) {
-    console.error('Erro ao excluir locador:', error);
-    console.error('Stack:', error.stack);
+    console.error('Erro ao excluir locador:', error.message);
     res.status(500).json({
       success: false,
       message: 'Erro ao excluir locador',
@@ -413,6 +662,7 @@ app.delete('/locadores/:id', async (req, res) => {
 });
 
 // GET - Obter locador por ID
+// Rota pública - não requer autenticação para visualizar
 app.get('/locadores/:id', async (req, res) => {
   try {
     const { id } = req.params;
@@ -444,21 +694,45 @@ app.get('/locadores/:id', async (req, res) => {
   }
 });
 
-// GET - Listar todos os locatários
+// GET - Listar todos os locatários (com paginação)
+// Rota pública - não requer autenticação para listar
 app.get('/locatarios', async (req, res) => {
   try {
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 50;
+    const offset = (page - 1) * limit;
+
+    // Validar limites
+    const validLimit = Math.min(Math.max(limit, 1), 100); // Entre 1 e 100
+    const validPage = Math.max(page, 1);
+
     const client = await pool.connect();
     try {
-      const result = await client.query('SELECT * FROM locatarios ORDER BY nome');
+      // Contar total de registros
+      const countResult = await client.query('SELECT COUNT(*) FROM locatarios');
+      const total = parseInt(countResult.rows[0].count);
+
+      // Buscar registros paginados
+      const result = await client.query(
+        'SELECT * FROM locatarios ORDER BY nome LIMIT $1 OFFSET $2',
+        [validLimit, offset]
+      );
+
       res.json({
         success: true,
-        data: result.rows,
+        data: fixObjectEncoding(result.rows),
+        pagination: {
+          page: validPage,
+          limit: validLimit,
+          total,
+          totalPages: Math.ceil(total / validLimit)
+        }
       });
     } finally {
       client.release();
     }
   } catch (error) {
-    console.error('Erro ao listar locatários:', error);
+    console.error('Erro ao listar locatários:', error.message);
     res.status(500).json({
       success: false,
       message: 'Erro ao listar locatários',
@@ -466,8 +740,8 @@ app.get('/locatarios', async (req, res) => {
   }
 });
 
-// POST - Criar locatário
-app.post('/locatarios', async (req, res) => {
+// POST - Criar locatário (requer autenticação)
+app.post('/locatarios', authenticateToken, strictLimiter, async (req, res) => {
   try {
     const { 
       nome, 
@@ -486,20 +760,65 @@ app.post('/locatarios', async (req, res) => {
       fiadorCpf
     } = req.body || {};
 
-    if (!nome || !cpf) {
+    // Validação de campos obrigatórios
+    try {
+      validateRequired(nome, 'nome');
+      validateRequired(cpf, 'cpf');
+    } catch (error) {
       return res.status(400).json({
         success: false,
-        message: 'Nome e CPF são obrigatórios',
+        message: error.message,
+      });
+    }
+
+    // Validação de CPF
+    if (!validateCPF(cpf)) {
+      return res.status(400).json({
+        success: false,
+        message: 'CPF inválido',
       });
     }
 
     if (cpf.length > 14) {
-      console.log('ERRO: CPF muito longo (locatário)', { cpf, length: cpf.length });
       return res.status(400).json({
         success: false,
         message: 'CPF deve ter no máximo 14 caracteres',
       });
     }
+
+    // Validação de email (se fornecido)
+    if (email && !validateEmail(email)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Email inválido',
+      });
+    }
+
+    // Validação de CPF do fiador (se fornecido)
+    if (fiadorCpf && !validateCPF(fiadorCpf)) {
+      return res.status(400).json({
+        success: false,
+        message: 'CPF do fiador inválido',
+      });
+    }
+
+    // Sanitização de dados
+    const sanitizedData = {
+      nome: sanitizeString(nome),
+      cpf: sanitizeString(cpf),
+      rg: rg ? sanitizeString(rg) : null,
+      estado_civil: estado_civil ? sanitizeString(estado_civil) : null,
+      profissao: profissao ? sanitizeString(profissao) : null,
+      endereco: endereco ? sanitizeString(endereco) : null,
+      email: email ? validator.normalizeEmail(email) : null,
+      telefone: telefone ? sanitizeString(telefone) : null,
+      dataNascimento: dataNascimento || null,
+      renda: renda || null,
+      referencia: referencia ? sanitizeString(referencia) : null,
+      referenciaComercial: referenciaComercial ? sanitizeString(referenciaComercial) : null,
+      fiador: fiador ? sanitizeString(fiador) : null,
+      fiadorCpf: fiadorCpf ? sanitizeString(fiadorCpf) : null
+    };
 
     const client = await pool.connect();
     try {
@@ -510,25 +829,33 @@ app.post('/locatarios', async (req, res) => {
           referencia_comercial, fiador, fiador_cpf
         ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14) RETURNING *`,
         [
-          nome, cpf, rg, estado_civil, profissao, endereco, 
-          email, telefone, dataNascimento, renda, referencia, 
-          referenciaComercial, fiador, fiadorCpf
+          sanitizedData.nome, 
+          sanitizedData.cpf, 
+          sanitizedData.rg, 
+          sanitizedData.estado_civil, 
+          sanitizedData.profissao, 
+          sanitizedData.endereco, 
+          sanitizedData.email, 
+          sanitizedData.telefone, 
+          sanitizedData.dataNascimento, 
+          sanitizedData.renda, 
+          sanitizedData.referencia, 
+          sanitizedData.referenciaComercial, 
+          sanitizedData.fiador, 
+          sanitizedData.fiadorCpf
         ]
       );
 
       res.json({
         success: true,
-        data: result.rows[0],
+        data: fixObjectEncoding(result.rows[0]),
       });
     } finally {
       client.release();
     }
-  } catch (error) {
-    console.error('Erro ao criar locatário:', error);
-    
+    } catch (error) {
     // Tratar CPF duplicado
     if (error.code === '23505' && error.constraint === 'locatarios_cpf_key') {
-      console.log('ERRO: CPF duplicado detectado (locatário)');
       return res.status(400).json({
         success: false,
         message: 'CPF já cadastrado no sistema',
@@ -536,6 +863,7 @@ app.post('/locatarios', async (req, res) => {
       });
     }
     
+    console.error('Erro ao criar locatário:', error.message);
     res.status(500).json({
       success: false,
       message: 'Erro ao criar locatário',
@@ -543,8 +871,8 @@ app.post('/locatarios', async (req, res) => {
   }
 });
 
-// PUT - Atualizar locatário
-app.put('/locatarios/:id', async (req, res) => {
+// PUT - Atualizar locatário (requer autenticação)
+app.put('/locatarios/:id', authenticateToken, async (req, res) => {
   try {
     const { id } = req.params;
     const { nome, cpf, rg, estado_civil, profissao, endereco, email, telefone } = req.body || {};
@@ -579,8 +907,8 @@ app.put('/locatarios/:id', async (req, res) => {
   }
 });
 
-// DELETE - Excluir locatário
-app.delete('/locatarios/:id', async (req, res) => {
+// DELETE - Excluir locatário (requer autenticação)
+app.delete('/locatarios/:id', authenticateToken, async (req, res) => {
   try {
     const { id } = req.params;
 
@@ -612,6 +940,7 @@ app.delete('/locatarios/:id', async (req, res) => {
 });
 
 // GET - Obter locatário por ID
+// Rota pública - não requer autenticação para visualizar
 app.get('/locatarios/:id', async (req, res) => {
   try {
     const { id } = req.params;
@@ -643,11 +972,25 @@ app.get('/locatarios/:id', async (req, res) => {
   }
 });
 
-// GET - Listar todos os imóveis
+// GET - Listar todos os imóveis (com paginação)
+// Rota pública - não requer autenticação para listar
 app.get('/imoveis', async (req, res) => {
   try {
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 50;
+    const offset = (page - 1) * limit;
+
+    // Validar limites
+    const validLimit = Math.min(Math.max(limit, 1), 100); // Entre 1 e 100
+    const validPage = Math.max(page, 1);
+
     const client = await pool.connect();
     try {
+      // Contar total de registros
+      const countResult = await client.query('SELECT COUNT(*) FROM imoveis');
+      const total = parseInt(countResult.rows[0].count);
+
+      // Buscar registros paginados
       const result = await client.query(`
         SELECT 
           i.*,
@@ -663,16 +1006,24 @@ app.get('/imoveis', async (req, res) => {
         LEFT JOIN locadores l ON i.id_locador = l.id
         LEFT JOIN locatarios lt ON i.id_locatario = lt.id
         ORDER BY i.endereco
-      `);
+        LIMIT $1 OFFSET $2
+      `, [validLimit, offset]);
+
       res.json({
         success: true,
         data: fixObjectEncoding(result.rows),
+        pagination: {
+          page: validPage,
+          limit: validLimit,
+          total,
+          totalPages: Math.ceil(total / validLimit)
+        }
       });
     } finally {
       client.release();
     }
   } catch (error) {
-    console.error('Erro ao listar imóveis:', error);
+    console.error('Erro ao listar imóveis:', error.message);
     res.status(500).json({
       success: false,
       message: 'Erro ao listar imóveis',
@@ -680,8 +1031,8 @@ app.get('/imoveis', async (req, res) => {
   }
 });
 
-// POST - Criar imóvel
-app.post('/imoveis', async (req, res) => {
+// POST - Criar imóvel (requer autenticação)
+app.post('/imoveis', authenticateToken, strictLimiter, async (req, res) => {
   try {
     const { 
       endereco, tipo, descricao, cadastro_iptu,
@@ -691,15 +1042,77 @@ app.post('/imoveis', async (req, res) => {
       condominio_titular, condominio_valor_estimado, id_locador, id_locatario
     } = req.body || {};
 
-    if (!endereco || !tipo || !id_locador) {
+    // Validação de campos obrigatórios
+    try {
+      validateRequired(endereco, 'endereco');
+      validateRequired(tipo, 'tipo');
+      validateRequired(id_locador, 'id_locador');
+    } catch (error) {
       return res.status(400).json({
         success: false,
-        message: 'Endereço, tipo e ID do locador são obrigatórios',
+        message: error.message,
       });
     }
 
+    // Validar ID do locador
+    if (isNaN(parseInt(id_locador))) {
+      return res.status(400).json({
+        success: false,
+        message: 'ID do locador inválido',
+      });
+    }
+
+    // Validar ID do locatário (se fornecido)
+    if (id_locatario && isNaN(parseInt(id_locatario))) {
+      return res.status(400).json({
+        success: false,
+        message: 'ID do locatário inválido',
+      });
+    }
+
+    // Sanitização de dados
+    const sanitizedData = {
+      endereco: sanitizeString(endereco),
+      tipo: sanitizeString(tipo),
+      descricao: descricao ? sanitizeString(descricao) : null,
+      cadastro_iptu: cadastro_iptu ? sanitizeString(cadastro_iptu) : null,
+      unidade_consumidora_numero: unidade_consumidora_numero ? sanitizeString(unidade_consumidora_numero) : null,
+      unidade_consumidora_titular: unidade_consumidora_titular ? sanitizeString(unidade_consumidora_titular) : null,
+      unidade_consumidora_cpf: unidade_consumidora_cpf ? sanitizeString(unidade_consumidora_cpf) : null,
+      saneago_numero_conta: saneago_numero_conta ? sanitizeString(saneago_numero_conta) : null,
+      saneago_titular: saneago_titular ? sanitizeString(saneago_titular) : null,
+      saneago_cpf: saneago_cpf ? sanitizeString(saneago_cpf) : null,
+      gas_numero_conta: gas_numero_conta ? sanitizeString(gas_numero_conta) : null,
+      gas_titular: gas_titular ? sanitizeString(gas_titular) : null,
+      gas_cpf: gas_cpf ? sanitizeString(gas_cpf) : null,
+      condominio_titular: condominio_titular ? sanitizeString(condominio_titular) : null,
+      condominio_valor_estimado: condominio_valor_estimado || null,
+      id_locador: parseInt(id_locador),
+      id_locatario: id_locatario ? parseInt(id_locatario) : null
+    };
+
     const client = await pool.connect();
     try {
+      // Verificar se locador existe
+      const locadorCheck = await client.query('SELECT id FROM locadores WHERE id = $1', [sanitizedData.id_locador]);
+      if (locadorCheck.rowCount === 0) {
+        return res.status(400).json({
+          success: false,
+          message: 'Locador não encontrado',
+        });
+      }
+
+      // Verificar se locatário existe (se fornecido)
+      if (sanitizedData.id_locatario) {
+        const locatarioCheck = await client.query('SELECT id FROM locatarios WHERE id = $1', [sanitizedData.id_locatario]);
+        if (locatarioCheck.rowCount === 0) {
+          return res.status(400).json({
+            success: false,
+            message: 'Locatário não encontrado',
+          });
+        }
+      }
+
       const result = await client.query(`
         INSERT INTO imoveis (
           endereco, tipo, descricao, cadastro_iptu, 
@@ -711,22 +1124,34 @@ app.post('/imoveis', async (req, res) => {
         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
         RETURNING *
       `, [
-        endereco, tipo, descricao, cadastro_iptu,
-        unidade_consumidora_numero, unidade_consumidora_titular, unidade_consumidora_cpf,
-        saneago_numero_conta, saneago_titular, saneago_cpf,
-        gas_numero_conta, gas_titular, gas_cpf,
-        condominio_titular, condominio_valor_estimado, id_locador, id_locatario
+        sanitizedData.endereco, 
+        sanitizedData.tipo, 
+        sanitizedData.descricao, 
+        sanitizedData.cadastro_iptu,
+        sanitizedData.unidade_consumidora_numero, 
+        sanitizedData.unidade_consumidora_titular, 
+        sanitizedData.unidade_consumidora_cpf,
+        sanitizedData.saneago_numero_conta, 
+        sanitizedData.saneago_titular, 
+        sanitizedData.saneago_cpf,
+        sanitizedData.gas_numero_conta, 
+        sanitizedData.gas_titular, 
+        sanitizedData.gas_cpf,
+        sanitizedData.condominio_titular, 
+        sanitizedData.condominio_valor_estimado, 
+        sanitizedData.id_locador, 
+        sanitizedData.id_locatario
       ]);
 
       res.json({
         success: true,
-        data: result.rows[0],
+        data: fixObjectEncoding(result.rows[0]),
       });
     } finally {
       client.release();
     }
-  } catch (error) {
-    console.error('Erro ao criar imóvel:', error);
+    } catch (error) {
+    console.error('Erro ao criar imóvel:', error.message);
     res.status(500).json({
       success: false,
       message: 'Erro ao criar imóvel',
@@ -734,8 +1159,8 @@ app.post('/imoveis', async (req, res) => {
   }
 });
 
-// PUT - Atualizar imóvel
-app.put('/imoveis/:id', async (req, res) => {
+// PUT - Atualizar imóvel (requer autenticação)
+app.put('/imoveis/:id', authenticateToken, async (req, res) => {
   try {
     const { id } = req.params;
     const { 
@@ -788,42 +1213,19 @@ app.put('/imoveis/:id', async (req, res) => {
   }
 });
 
-// DELETE - Excluir imóvel
-app.delete('/imoveis/:id', async (req, res) => {
-  try {
-    const { id } = req.params;
-
-    const client = await pool.connect();
-    try {
-      const result = await client.query('DELETE FROM imoveis WHERE id = $1', [id]);
-
-      if (result.rowCount === 0) {
-        return res.status(404).json({
-          success: false,
-          message: 'Imóvel não encontrado',
-        });
-      }
-
-      res.json({
-        success: true,
-        message: 'Imóvel excluído com sucesso',
-      });
-    } finally {
-      client.release();
-    }
-  } catch (error) {
-    console.error('Erro ao excluir imóvel:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Erro ao excluir imóvel',
-    });
-  }
-});
-
 // GET - Obter imóvel por ID
+// Rota pública - não requer autenticação para visualizar
 app.get('/imoveis/:id', async (req, res) => {
   try {
     const { id } = req.params;
+
+    // Validar ID
+    if (!id || isNaN(parseInt(id))) {
+      return res.status(400).json({
+        success: false,
+        message: 'ID inválido',
+      });
+    }
 
     const client = await pool.connect();
     try {
@@ -841,7 +1243,7 @@ app.get('/imoveis/:id', async (req, res) => {
         FROM imoveis i
         LEFT JOIN locadores l ON i.id_locador = l.id
         LEFT JOIN locatarios lt ON i.id_locatario = lt.id
-        WHERE i.id = ${id}
+        WHERE i.id = $1
       `, [id]);
 
       if (result.rowCount === 0) {
@@ -867,12 +1269,18 @@ app.get('/imoveis/:id', async (req, res) => {
   }
 });
 
-// DELETE - Excluir imóvel
-app.delete('/imoveis/:id', async (req, res) => {
+// DELETE - Excluir imóvel (requer autenticação)
+app.delete('/imoveis/:id', authenticateToken, async (req, res) => {
   try {
     const { id } = req.params;
-    console.log('=== DEBUG: Excluindo imóvel ===');
-    console.log('ID do imóvel:', id);
+
+    // Validar ID
+    if (!id || isNaN(parseInt(id))) {
+      return res.status(400).json({
+        success: false,
+        message: 'ID inválido',
+      });
+    }
 
     const client = await pool.connect();
     try {
@@ -889,15 +1297,33 @@ app.delete('/imoveis/:id', async (req, res) => {
       // Excluir imagens do imóvel primeiro (se existir)
       await client.query('DELETE FROM imoveis_imagens WHERE id_imovel = $1', [id]);
       
+      // Excluir arquivos físicos das imagens
+      const imagensResult = await client.query(
+        'SELECT caminho_imagem FROM imoveis_imagens WHERE id_imovel = $1',
+        [id]
+      );
+      
+      for (const imagem of imagensResult.rows) {
+        const filePath = path.join(uploadsDir, path.basename(imagem.caminho_imagem));
+        if (fs.existsSync(filePath)) {
+          try {
+            fs.unlinkSync(filePath);
+          } catch (err) {
+            console.error('Erro ao excluir arquivo de imagem:', err);
+          }
+        }
+      }
+      
       // Excluir imóvel
-      const result = await client.query('DELETE FROM imoveis WHERE id = $1 RETURNING *', [id]);
-
-      console.log('Imóvel excluído com sucesso:', result.rows[0]);
+      const result = await client.query('DELETE FROM imoveis WHERE id = $1 RETURNING id, endereco', [id]);
       
       res.json({
         success: true,
         message: 'Imóvel excluído com sucesso',
-        data: result.rows[0],
+        data: {
+          id: result.rows[0].id,
+          endereco: result.rows[0].endereco
+        },
       });
     } finally {
       client.release();
@@ -957,8 +1383,8 @@ app.use((req, res) => {
   });
 });
 
-// POST - Upload de imagens para um imóvel
-app.post('/imoveis/:id/imagens', upload.array('imagens', 20), async (req, res) => {
+// POST - Upload de imagens para um imóvel (requer autenticação)
+app.post('/imoveis/:id/imagens', authenticateToken, upload.array('imagens', 20), async (req, res) => {
   try {
     const { id } = req.params;
     const files = req.files;
@@ -1008,6 +1434,7 @@ app.post('/imoveis/:id/imagens', upload.array('imagens', 20), async (req, res) =
 });
 
 // GET - Buscar imagens de um imóvel
+// Rota pública - não requer autenticação para visualizar
 app.get('/imoveis/:id/imagens', async (req, res) => {
   try {
     const { id } = req.params;
@@ -1036,8 +1463,8 @@ app.get('/imoveis/:id/imagens', async (req, res) => {
   }
 });
 
-// DELETE - Remover uma imagem
-app.delete('/imoveis-imagens/:id', async (req, res) => {
+// DELETE - Remover uma imagem (requer autenticação)
+app.delete('/imoveis-imagens/:id', authenticateToken, async (req, res) => {
   try {
     const { id } = req.params;
 

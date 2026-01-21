@@ -1,13 +1,11 @@
 import 'package:flutter/material.dart';
-import 'package:sistema_imobiliaria/services/database_service.dart';
-import 'package:sistema_imobiliaria/services/image_service.dart';
-import 'package:sistema_imobiliaria/screens/user_hub_screen.dart';
-import 'package:image_picker/image_picker.dart';
-import 'dart:io';
 import 'package:flutter/foundation.dart';
-import 'dart:html' as html;
-import 'dart:typed_data';
+import 'package:image_picker/image_picker.dart';
+import 'package:sistema_imobiliaria/services/database_service.dart';
+import 'package:sistema_imobiliaria/screens/user_hub_screen.dart';
+import 'package:sistema_imobiliaria/screens/edit_imovel_screen.dart';
 import 'dart:convert';
+import 'dart:io';
 
 class ImovelDetailScreen extends StatefulWidget {
   final Map<String, dynamic> imovel;
@@ -28,32 +26,6 @@ class _ImovelDetailScreenState extends State<ImovelDetailScreen> {
   @override
   void initState() {
     super.initState();
-    // Debug: Verificar dados recebidos
-    print('=== DEBUG: Dados do Imóvel Recebidos ===');
-    print('ID: ${imovel['id']}');
-    print('Tipo: ${imovel['tipo']}');
-    print('Endereço: ${imovel['endereco']}');
-    print('Cadastro IPTU: ${imovel['cadastro_iptu']}');
-    print('Unidade Consumidora Número: ${imovel['unidade_consumidora_numero']}');
-    print('Unidade Consumidora Titular: ${imovel['unidade_consumidora_titular']}');
-    print('Unidade Consumidora CPF: ${imovel['unidade_consumidora_cpf']}');
-    print('Saneago Número: ${imovel['saneago_numero_conta']}');
-    print('Saneago Titular: ${imovel['saneago_titular']}');
-    print('Saneago CPF: ${imovel['saneago_cpf']}');
-    print('Gás Número: ${imovel['gas_numero_conta']}');
-    print('Gás Titular: ${imovel['gas_titular']}');
-    print('Gás CPF: ${imovel['gas_cpf']}');
-    print('Condomínio Titular: ${imovel['condominio_titular']}');
-    print('Condomínio Valor: ${imovel['condominio_valor_estimado']}');
-    print('Locador Nome: ${imovel['locador_nome']}');
-    print('Locador CPF: ${imovel['locador_cpf']}');
-    print('Locador Telefone: ${imovel['locador_telefone']}');
-    print('Locador Email: ${imovel['locador_email']}');
-    print('Locatário Nome: ${imovel['locatario_nome']}');
-    print('Locatário CPF: ${imovel['locatario_cpf']}');
-    print('Locatário Telefone: ${imovel['locatario_telefone']}');
-    print('Locatário Email: ${imovel['locatario_email']}');
-    print('=== FIM DEBUG ===');
     
     // Carregar imagens existentes do imóvel (se houver)
     _carregarImagensExistentes();
@@ -82,25 +54,15 @@ class _ImovelDetailScreenState extends State<ImovelDetailScreen> {
       XFile? imagem;
       
       if (kIsWeb) {
-        // Para web, usar input de arquivo HTML
-        final input = html.FileUploadInputElement();
-        input.accept = 'image/*';
-        input.click();
-        
-        await input.onChange.first;
-        if (input.files?.isNotEmpty == true) {
-          final file = input.files![0];
-          final reader = html.FileReader();
-          reader.readAsDataUrl(file);
-          await reader.onLoad.first;
-          
-          // Criar um XFile a partir do Data URL para web
-          final dataUrl = reader.result as String;
-          final bytes = _dataUrlToBytes(dataUrl);
-          if (bytes != null) {
-            imagem = XFile.fromData(bytes, name: file.name);
-          }
-        }
+        // Para web, mostrar mensagem temporária
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Funcionalidade de imagens em desenvolvimento para web'),
+            backgroundColor: Colors.orange,
+            duration: Duration(seconds: 3),
+          ),
+        );
+        return;
       } else if (Platform.isAndroid || Platform.isIOS) {
         // Para móveis, usar image_picker
         imagem = await _imagePicker.pickImage(
@@ -111,7 +73,7 @@ class _ImovelDetailScreenState extends State<ImovelDetailScreen> {
         // Para outras plataformas (Windows/Linux), mostrar mensagem
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Funcionalidade de imagens disponível apenas em dispositivos móveis ou navegador web'),
+            content: Text('Funcionalidade de imagens disponível apenas em dispositivos móveis'),
             backgroundColor: Colors.orange,
             duration: Duration(seconds: 3),
           ),
@@ -411,9 +373,9 @@ class _ImovelDetailScreenState extends State<ImovelDetailScreen> {
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
             colors: [
-              Color(0xFF2B247A),
-              Color(0xFF4938A8),
-              Color(0xFF8D78FF),
+              Color(0xFF1A1D29),
+              Color(0xFF2D3142),
+              Color(0xFF4A5568),
             ],
           ),
         ),
@@ -440,6 +402,20 @@ class _ImovelDetailScreenState extends State<ImovelDetailScreen> {
                       ),
                     ),
                     const Spacer(),
+                    Container(
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF3B82F6).withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: const Color(0xFF3B82F6).withOpacity(0.3)),
+                      ),
+                      child: IconButton(
+                        onPressed: _editImovel,
+                        icon: const Icon(Icons.edit, color: Color(0xFF3B82F6), size: 24),
+                        tooltip: 'Editar Imóvel',
+                        padding: const EdgeInsets.all(12),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
                     Container(
                       decoration: BoxDecoration(
                         color: Colors.red.withOpacity(0.1),
@@ -854,6 +830,15 @@ class _ImovelDetailScreenState extends State<ImovelDetailScreen> {
     }
     
     return '${cpf.substring(0, 3)}.${cpf.substring(3, 6)}.${cpf.substring(6, 9)}-${cpf.substring(9)}';
+  }
+
+  void _editImovel() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => EditImovelScreen(imovel: imovel),
+      ),
+    );
   }
 
   // Métodos para construir cards modernos

@@ -42,10 +42,20 @@ dependencies:
   # Para gerenciar variáveis de ambiente
   flutter_dotenv: ^5.1.0
   logger: ^2.6.2
-  device_info_plus: ^11.0.0
+  device_info_plus: 9.1.2
   
   # Para selecionar imagens da galeria
   image_picker: ^1.0.4
+  
+  # Firebase Authentication
+  firebase_auth: ^5.7.0
+  google_sign_in: ^6.2.1
+  
+  # Firebase Core
+  firebase_core: ^3.4.1
+  
+  # Armazenamento local para tokens
+  shared_preferences: ^2.2.2
 
 dev_dependencies:
   flutter_test:
