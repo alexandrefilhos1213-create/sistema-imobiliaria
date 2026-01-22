@@ -425,79 +425,59 @@ app.post('/login', async (req, res) => {
   }
 });
 
-// POST - Registrar novo usuário
+// POST - Registrar novo usuário (HOTFIX SIMPLIFICADO)
 app.post('/register', async (req, res) => {
   try {
-    console.log('=== DEBUG REGISTER ===');
-    console.log('REQ BODY:', req.body);
+    console.log('=== REGISTER HOTFIX ===');
+    console.log('BODY:', req.body);
     
-    const { nome, email, senha } = req.body || {};
-
-    // Validações básicas
+    const { nome, email, senha } = req.body;
+    
     if (!nome || !email || !senha) {
       return res.status(400).json({
         success: false,
-        message: 'Nome, email e senha são obrigatórios.',
+        message: 'Campos obrigatórios faltando'
       });
     }
-
-    // Normalizar email
-    const emailNormalizado = email.trim().toLowerCase();
     
-    if (senha.length < 6) {
-      return res.status(400).json({
-        success: false,
-        message: 'A senha deve ter pelo menos 6 caracteres.',
-      });
-    }
-
     const client = await pool.connect();
     try {
-      // Verificar se email já existe
-      const existingUser = await client.query(
+      // Verificar duplicado
+      const check = await client.query(
         'SELECT id FROM usuarios WHERE email = $1',
-        [emailNormalizado]
+        [email.toLowerCase()]
       );
-
-      if (existingUser.rowCount > 0) {
+      
+      if (check.rowCount > 0) {
         return res.status(400).json({
           success: false,
-          message: 'Este email já está cadastrado.',
+          message: 'Email já existe'
         });
       }
-
-      // Hash da senha
-      const senhaHash = await bcrypt.hash(senha, 10);
-
-      // Inserir novo usuário
+      
+      // Hash senha
+      const hash = await bcrypt.hash(senha, 10);
+      
+      // Inserir
       const result = await client.query(
-        'INSERT INTO usuarios (nome, email, senha_hash, tipo) VALUES ($1, $2, $3, $4) RETURNING id, nome, email, tipo',
-        [nome, emailNormalizado, senhaHash, 'usuario']
+        'INSERT INTO usuarios (nome, email, senha_hash, tipo) VALUES ($1, $2, $3, $4) RETURNING id, nome, email',
+        [nome, email.toLowerCase(), hash, 'usuario']
       );
-
-      const novoUsuario = result.rows[0];
-
-      console.log('✅ Usuário criado:', novoUsuario);
-
-      return res.status(201).json({
+      
+      res.status(201).json({
         success: true,
-        message: 'Usuário criado com sucesso!',
-        usuario: {
-          id: novoUsuario.id,
-          nome: novoUsuario.nome,
-          email: novoUsuario.email,
-          tipo: novoUsuario.tipo,
-        },
+        message: 'Usuário criado!',
+        usuario: result.rows[0]
       });
-
+      
     } finally {
       client.release();
     }
   } catch (error) {
-    console.error('Erro na rota /register:', error.message);
-    return res.status(500).json({
+    console.error('ERRO REGISTER:', error.message);
+    res.status(500).json({
       success: false,
-      message: 'Erro interno no servidor.',
+      message: error.message
     });
   }
 });
