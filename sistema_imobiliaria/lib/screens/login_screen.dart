@@ -6,6 +6,7 @@ import 'package:sistema_imobiliaria/config/api_config.dart';
 import 'package:sistema_imobiliaria/services/auth_service.dart';
 import 'package:sistema_imobiliaria/theme/app_theme.dart';
 import 'package:sistema_imobiliaria/screens/user_hub_screen.dart';
+import 'package:sistema_imobiliaria/screens/register_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({Key? key}) : super(key: key);
@@ -412,7 +413,13 @@ class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin
                                 style: TextStyle(color: Colors.grey.shade400),
                               ),
                               TextButton(
-                                onPressed: () {},
+                                onPressed: () {
+                                  Navigator.of(context).push(
+                                    MaterialPageRoute(
+                                      builder: (context) => const RegisterScreen(),
+                                    ),
+                                  );
+                                },
                                 child: const Text(
                                   'Criar conta',
                                   style: TextStyle(

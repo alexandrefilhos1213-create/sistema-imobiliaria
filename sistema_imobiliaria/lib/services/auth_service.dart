@@ -76,6 +76,17 @@ class AuthService {
     return _currentToken;
   }
 
+  /// Obtém o user_id de forma assíncrona
+  static Future<int?> getCurrentUserId() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      return prefs.getInt(_userIdKey);
+    } catch (e) {
+      _logger.w('Erro ao buscar user_id', error: e);
+      return null;
+    }
+  }
+
   /// Remove o token (logout)
   static Future<void> clearToken() async {
     try {

@@ -75,11 +75,20 @@ class DatabaseService {
         'Access-Control-Allow-Origin': '*',
       };
       
-      // Adicionar token de autenticação se disponível
-      if (token != null && token.isNotEmpty) {
+      // Adicionar token se disponível
+      if (token != null) {
         headers['Authorization'] = 'Bearer $token';
       }
-
+      
+      // Adicionar usuario_id automaticamente se tivermos um usuário logado
+      if (body != null && token != null) {
+        final userId = await AuthService.getCurrentUserId();
+        if (userId != null) {
+          body['usuario_id'] = userId;
+          _logger.d('[$requestId] Adicionado usuario_id: $userId');
+        }
+      }
+      
       switch (method.toUpperCase()) {
         case 'GET':
           response = await http.get(uri, headers: headers)
@@ -600,6 +609,34 @@ class DatabaseService {
       }
     } catch (e) {
       _logger.e('Erro ao excluir locador', error: e);
+      rethrow;
+    }
+  }
+
+  // REGISTRO DE USUÁRIO
+  static Future<Map<String, dynamic>> registerUser({
+    required String nome,
+    required String email,
+    required String senha,
+  }) async {
+    if (!_initialized) await initialize();
+    
+    try {
+      _logger.d('Tentando registrar usuário: $email');
+      
+      final response = await _makeRequest('POST', '/register', 
+        body: {
+          'nome': nome,
+          'email': email,
+          'senha': senha,
+        },
+      );
+      
+      _logger.i('Usuário registrado com sucesso: $email');
+      return response;
+      
+    } catch (e, stackTrace) {
+      _logger.e('Erro ao registrar usuário', error: e, stackTrace: stackTrace);
       rethrow;
     }
   }
