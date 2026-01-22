@@ -314,16 +314,25 @@ app.get('/', (req, res) => {
 
 app.post('/login', async (req, res) => {
   try {
+    console.log('=== DEBUG LOGIN ===');
+    console.log('REQ BODY:', req.body);
+    console.log('REQ HEADERS:', req.headers);
+    
     const { email, usuario, senha } = req.body || {};
+    
+    // Normalizar email
+    const emailNormalizado = (email || usuario)?.trim().toLowerCase();
+    console.log('EMAIL NORMALIZADO:', emailNormalizado);
+    console.log('SENHA RECEBIDA:', senha ? '***' : 'NULL/VAZIA');
 
-    if (!senha || (!email && !usuario)) {
+    if (!senha || !emailNormalizado) {
       return res.status(400).json({
         success: false,
         message: 'Informe usuário/email e senha.',
       });
     }
 
-    const loginValue = email || usuario;
+    const loginValue = emailNormalizado;
 
     const client = await pool.connect();
     try {
@@ -349,10 +358,19 @@ app.post('/login', async (req, res) => {
       const usuarioDB = result.rows[0];
       let senhaValida = false;
 
+      console.log('USUÁRIO ENCONTRADO:', {
+        id: usuarioDB.id,
+        nome: usuarioDB.nome,
+        email: usuarioDB.email,
+        temHash: !!usuarioDB.senha_hash
+      });
+
       // Sistema novo: sempre usar bcrypt
       if (usuarioDB.senha_hash) {
         try {
+          console.log('COMPARANDO SENHA COM BCRYPT...');
           senhaValida = await bcrypt.compare(senha, usuarioDB.senha_hash);
+          console.log('RESULTADO BCRYPT:', senhaValida);
         } catch (bcryptError) {
           console.error('Erro ao comparar senha com bcrypt:', bcryptError.message);
           return res.status(500).json({
@@ -361,6 +379,7 @@ app.post('/login', async (req, res) => {
           });
         }
       } else {
+        console.log('❌ USUÁRIO SEM SENHA_HASH!');
         return res.status(401).json({
           success: false,
           message: 'Usuário sem senha cadastrada.',
