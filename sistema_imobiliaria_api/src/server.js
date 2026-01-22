@@ -461,7 +461,7 @@ app.post('/register', async (req, res) => {
       // Inserir
       const result = await client.query(
         'INSERT INTO usuarios (nome, email, senha_hash, tipo) VALUES ($1, $2, $3, $4) RETURNING id, nome, email',
-        [nome, email.toLowerCase(), hash, 'usuario']
+        [nome, email.toLowerCase(), hash, 'normal']  // CORRIGIDO: 'normal' em vez de 'usuario'
       );
       
       res.status(201).json({
