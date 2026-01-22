@@ -502,13 +502,15 @@ app.post('/register', async (req, res) => {
   }
 });
 
-// GET - Listar todos os locadores (com paginação)
-// Rota pública - não requer autenticação para listar
-app.get('/locadores', async (req, res) => {
+// GET - Listar locadores do usuário (com paginação)
+app.get('/locadores', authenticateToken, async (req, res) => {
   try {
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 50;
     const offset = (page - 1) * limit;
+
+    // Obter usuario_id do token
+    const usuarioId = req.user?.userId;
 
     // Validar limites
     const validLimit = Math.min(Math.max(limit, 1), 100); // Entre 1 e 100
@@ -516,14 +518,17 @@ app.get('/locadores', async (req, res) => {
 
     const client = await pool.connect();
     try {
-      // Contar total de registros
-      const countResult = await client.query('SELECT COUNT(*) FROM locadores');
+      // Contar total de registros do usuário
+      const countResult = await client.query(
+        'SELECT COUNT(*) FROM locadores WHERE usuario_id = $1',
+        [usuarioId]
+      );
       const total = parseInt(countResult.rows[0].count);
 
-      // Buscar registros paginados
+      // Buscar registros paginados do usuário
       const result = await client.query(
-        'SELECT * FROM locadores ORDER BY nome LIMIT $1 OFFSET $2',
-        [validLimit, offset]
+        'SELECT * FROM locadores WHERE usuario_id = $1 ORDER BY nome LIMIT $2 OFFSET $3',
+        [usuarioId, validLimit, offset]
       );
 
       res.json({
@@ -566,10 +571,14 @@ app.post('/locadores', authenticateToken, strictLimiter, async (req, res) => {
       referencia
     } = req.body || {};
 
+    // Obter usuario_id do token
+    const usuarioId = req.user?.userId;
+
     // Validação de campos obrigatórios
     try {
       validateRequired(nome, 'nome');
       validateRequired(cpf, 'cpf');
+      validateRequired(usuarioId, 'usuario_id');
     } catch (error) {
       return res.status(400).json({
         success: false,
@@ -613,7 +622,8 @@ app.post('/locadores', authenticateToken, strictLimiter, async (req, res) => {
       cnh: cnh ? sanitizeString(cnh) : null,
       email: email ? validator.normalizeEmail(email) : null,
       telefone: telefone ? sanitizeString(telefone) : null,
-      referencia: referencia ? sanitizeString(referencia) : null
+      referencia: referencia ? sanitizeString(referencia) : null,
+      usuario_id: usuarioId // Adicionar usuario_id
     };
 
     const client = await pool.connect();
@@ -621,8 +631,8 @@ app.post('/locadores', authenticateToken, strictLimiter, async (req, res) => {
       const result = await client.query(
         `INSERT INTO locadores (
           nome, cpf, rg, estado_civil, profissao, endereco,
-          data_nascimento, renda, cnh, email, telefone, referencia
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING *`,
+          data_nascimento, renda, cnh, email, telefone, referencia, usuario_id
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) RETURNING *`,
         [
           sanitizedData.nome, 
           sanitizedData.cpf, 
@@ -635,7 +645,8 @@ app.post('/locadores', authenticateToken, strictLimiter, async (req, res) => {
           sanitizedData.cnh, 
           sanitizedData.email, 
           sanitizedData.telefone, 
-          sanitizedData.referencia
+          sanitizedData.referencia,
+          sanitizedData.usuario_id
         ]
       );
 
@@ -854,10 +865,14 @@ app.post('/locatarios', authenticateToken, strictLimiter, async (req, res) => {
       fiadorCpf
     } = req.body || {};
 
+    // Obter usuario_id do token
+    const usuarioId = req.user?.userId;
+
     // Validação de campos obrigatórios
     try {
       validateRequired(nome, 'nome');
       validateRequired(cpf, 'cpf');
+      validateRequired(usuarioId, 'usuario_id');
     } catch (error) {
       return res.status(400).json({
         success: false,
@@ -1136,10 +1151,14 @@ app.post('/imoveis', authenticateToken, strictLimiter, async (req, res) => {
       condominio_titular, condominio_valor_estimado, id_locador, id_locatario
     } = req.body || {};
 
+    // Obter usuario_id do token
+    const usuarioId = req.user?.userId;
+
     // Validação de campos obrigatórios
     try {
       validateRequired(endereco, 'endereco');
       validateRequired(tipo, 'tipo');
+      validateRequired(usuarioId, 'usuario_id');
       validateRequired(id_locador, 'id_locador');
     } catch (error) {
       return res.status(400).json({
