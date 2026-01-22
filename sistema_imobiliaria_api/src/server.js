@@ -433,7 +433,7 @@ app.post('/register', async (req, res) => {
     
     const { nome, email, senha } = req.body || {};
 
-    // Validações
+    // Validações básicas
     if (!nome || !email || !senha) {
       return res.status(400).json({
         success: false,
@@ -574,20 +574,8 @@ app.post('/locadores', authenticateToken, strictLimiter, async (req, res) => {
     // Obter usuario_id do token
     const usuarioId = req.user?.userId;
 
-    // Validação de campos obrigatórios
-    try {
-      validateRequired(nome, 'nome');
-      validateRequired(cpf, 'cpf');
-      validateRequired(usuarioId, 'usuario_id');
-    } catch (error) {
-      return res.status(400).json({
-        success: false,
-        message: error.message,
-      });
-    }
-
-    // Validação de CPF
-    if (!validateCPF(cpf)) {
+    // Validação de CPF (simples)
+    if (!cpf || cpf.length < 11) {
       return res.status(400).json({
         success: false,
         message: 'CPF inválido',
@@ -601,29 +589,29 @@ app.post('/locadores', authenticateToken, strictLimiter, async (req, res) => {
       });
     }
 
-    // Validação de email (se fornecido)
-    if (email && !validateEmail(email)) {
+    // Validação de email (simples)
+    if (email && !email.includes('@')) {
       return res.status(400).json({
         success: false,
         message: 'Email inválido',
       });
     }
 
-    // Sanitização de dados
+    // Sanitização simples
     const sanitizedData = {
-      nome: sanitizeString(nome),
-      cpf: sanitizeString(cpf),
-      rg: rg ? sanitizeString(rg) : null,
-      estado_civil: estado_civil ? sanitizeString(estado_civil) : null,
-      profissao: profissao ? sanitizeString(profissao) : null,
-      endereco: endereco ? sanitizeString(endereco) : null,
+      nome: nome?.trim() || '',
+      cpf: cpf?.trim() || '',
+      rg: rg?.trim() || null,
+      estado_civil: estado_civil?.trim() || null,
+      profissao: profissao?.trim() || null,
+      endereco: endereco?.trim() || null,
       dataNascimento: dataNascimento || null,
       renda: renda || null,
-      cnh: cnh ? sanitizeString(cnh) : null,
-      email: email ? validator.normalizeEmail(email) : null,
-      telefone: telefone ? sanitizeString(telefone) : null,
-      referencia: referencia ? sanitizeString(referencia) : null,
-      usuario_id: usuarioId // Adicionar usuario_id
+      cnh: cnh?.trim() || null,
+      email: email?.trim().toLowerCase() || null,
+      telefone: telefone?.trim() || null,
+      referencia: referencia?.trim() || null,
+      usuario_id: usuarioId
     };
 
     const client = await pool.connect();
