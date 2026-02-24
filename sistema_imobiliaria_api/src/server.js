@@ -63,7 +63,10 @@ const strictLimiter = rateLimit({
   }
 });
 
-app.use('/api/', limiter);
+app.use(
+  ['/login', '/register', '/locadores', '/locatarios', '/imoveis', '/imoveis-imagens', '/estatisticas'],
+  limiter
+);
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
@@ -255,7 +258,11 @@ function fixObjectEncoding(obj) {
 }
 
 // Configuração JWT
-const JWT_SECRET = process.env.JWT_SECRET || 'sua-chave-secreta-super-segura-mude-em-producao-minimo-32-caracteres';
+const JWT_SECRET = process.env.JWT_SECRET;
+if (!JWT_SECRET && process.env.NODE_ENV === 'production') {
+  throw new Error('JWT_SECRET não configurado. Defina a variável de ambiente em produção.');
+}
+const EFFECTIVE_JWT_SECRET = JWT_SECRET || 'dev-only-jwt-secret-change-me-immediately';
 const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '24h';
 
 // Middleware de autenticação JWT
@@ -270,7 +277,7 @@ function authenticateToken(req, res, next) {
     });
   }
 
-  jwt.verify(token, JWT_SECRET, (err, decoded) => {
+  jwt.verify(token, EFFECTIVE_JWT_SECRET, (err, decoded) => {
     if (err) {
       if (err.name === 'TokenExpiredError') {
         return res.status(401).json({
@@ -297,7 +304,7 @@ function optionalAuthenticate(req, res, next) {
   const token = authHeader && authHeader.split(' ')[1];
 
   if (token) {
-    jwt.verify(token, JWT_SECRET, (err, decoded) => {
+    jwt.verify(token, EFFECTIVE_JWT_SECRET, (err, decoded) => {
       if (!err) {
         req.user = decoded;
       }
@@ -400,7 +407,7 @@ app.post('/login', async (req, res) => {
         nome: usuarioDB.nome,
       };
 
-      const token = jwt.sign(tokenPayload, JWT_SECRET, {
+      const token = jwt.sign(tokenPayload, EFFECTIVE_JWT_SECRET, {
         expiresIn: JWT_EXPIRES_IN,
       });
 
@@ -648,12 +655,13 @@ app.put('/locadores/:id', authenticateToken, async (req, res) => {
   try {
     const { id } = req.params;
     const { nome, cpf, rg, estado_civil, profissao, endereco } = req.body || {};
+    const usuarioId = req.user?.userId;
 
     const client = await pool.connect();
     try {
       const result = await client.query(
-        'UPDATE locadores SET nome = $1, cpf = $2, rg = $3, estado_civil = $4, profissao = $5, endereco = $6 WHERE id = $7 RETURNING *',
-        [nome, cpf, rg, estado_civil, profissao, endereco, id]
+        'UPDATE locadores SET nome = $1, cpf = $2, rg = $3, estado_civil = $4, profissao = $5, endereco = $6 WHERE id = $7 AND usuario_id = $8 RETURNING *',
+        [nome, cpf, rg, estado_civil, profissao, endereco, id, usuarioId]
       );
 
       if (result.rowCount === 0) {
@@ -683,6 +691,7 @@ app.put('/locadores/:id', authenticateToken, async (req, res) => {
 app.delete('/locadores/:id', authenticateToken, strictLimiter, async (req, res) => {
   try {
     const { id } = req.params;
+    const usuarioId = req.user?.userId;
 
     // Validar ID
     if (!id || isNaN(parseInt(id))) {
@@ -695,7 +704,10 @@ app.delete('/locadores/:id', authenticateToken, strictLimiter, async (req, res) 
     const client = await pool.connect();
     try {
       // Verificar se o locador existe
-      const checkResult = await client.query('SELECT id, nome FROM locadores WHERE id = $1', [id]);
+      const checkResult = await client.query(
+        'SELECT id, nome FROM locadores WHERE id = $1 AND usuario_id = $2',
+        [id, usuarioId]
+      );
       
       if (checkResult.rowCount === 0) {
         return res.status(404).json({
@@ -705,7 +717,10 @@ app.delete('/locadores/:id', authenticateToken, strictLimiter, async (req, res) 
       }
       
       // Excluir locador
-      const result = await client.query('DELETE FROM locadores WHERE id = $1', [id]);
+      const result = await client.query(
+        'DELETE FROM locadores WHERE id = $1 AND usuario_id = $2',
+        [id, usuarioId]
+      );
 
       if (result.rowCount === 0) {
         return res.status(404).json({
@@ -736,13 +751,17 @@ app.delete('/locadores/:id', authenticateToken, strictLimiter, async (req, res) 
 
 // GET - Obter locador por ID
 // Rota pública - não requer autenticação para visualizar
-app.get('/locadores/:id', async (req, res) => {
+app.get('/locadores/:id', authenticateToken, async (req, res) => {
   try {
     const { id } = req.params;
+    const usuarioId = req.user?.userId;
 
     const client = await pool.connect();
     try {
-      const result = await client.query('SELECT * FROM locadores WHERE id = $1', [id]);
+      const result = await client.query(
+        'SELECT * FROM locadores WHERE id = $1 AND usuario_id = $2',
+        [id, usuarioId]
+      );
 
       if (result.rowCount === 0) {
         return res.status(404).json({
@@ -769,11 +788,13 @@ app.get('/locadores/:id', async (req, res) => {
 
 // GET - Listar todos os locatários (com paginação)
 // Rota pública - não requer autenticação para listar
-app.get('/locatarios', async (req, res) => {
+app.get('/locatarios', authenticateToken, async (req, res) => {
   try {
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 50;
     const offset = (page - 1) * limit;
+
+    const usuarioId = req.user?.userId;
 
     // Validar limites
     const validLimit = Math.min(Math.max(limit, 1), 100); // Entre 1 e 100
@@ -782,13 +803,16 @@ app.get('/locatarios', async (req, res) => {
     const client = await pool.connect();
     try {
       // Contar total de registros
-      const countResult = await client.query('SELECT COUNT(*) FROM locatarios');
+      const countResult = await client.query(
+        'SELECT COUNT(*) FROM locatarios WHERE usuario_id = $1',
+        [usuarioId]
+      );
       const total = parseInt(countResult.rows[0].count);
 
       // Buscar registros paginados
       const result = await client.query(
-        'SELECT * FROM locatarios ORDER BY nome LIMIT $1 OFFSET $2',
-        [validLimit, offset]
+        'SELECT * FROM locatarios WHERE usuario_id = $1 ORDER BY nome LIMIT $2 OFFSET $3',
+        [usuarioId, validLimit, offset]
       );
 
       res.json({
@@ -894,7 +918,8 @@ app.post('/locatarios', authenticateToken, strictLimiter, async (req, res) => {
       referencia: referencia ? sanitizeString(referencia) : null,
       referenciaComercial: referenciaComercial ? sanitizeString(referenciaComercial) : null,
       fiador: fiador ? sanitizeString(fiador) : null,
-      fiadorCpf: fiadorCpf ? sanitizeString(fiadorCpf) : null
+      fiadorCpf: fiadorCpf ? sanitizeString(fiadorCpf) : null,
+      usuario_id: usuarioId
     };
 
     const client = await pool.connect();
@@ -903,8 +928,8 @@ app.post('/locatarios', authenticateToken, strictLimiter, async (req, res) => {
         `INSERT INTO locatarios (
           nome, cpf, rg, estado_civil, profissao, endereco, 
           email, telefone, data_nascimento, renda, referencia, 
-          referencia_comercial, fiador, fiador_cpf
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14) RETURNING *`,
+          referencia_comercial, fiador, fiador_cpf, usuario_id
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15) RETURNING *`,
         [
           sanitizedData.nome, 
           sanitizedData.cpf, 
@@ -919,7 +944,8 @@ app.post('/locatarios', authenticateToken, strictLimiter, async (req, res) => {
           sanitizedData.referencia, 
           sanitizedData.referenciaComercial, 
           sanitizedData.fiador, 
-          sanitizedData.fiadorCpf
+          sanitizedData.fiadorCpf,
+          sanitizedData.usuario_id
         ]
       );
 
@@ -953,12 +979,13 @@ app.put('/locatarios/:id', authenticateToken, async (req, res) => {
   try {
     const { id } = req.params;
     const { nome, cpf, rg, estado_civil, profissao, endereco, email, telefone } = req.body || {};
+    const usuarioId = req.user?.userId;
 
     const client = await pool.connect();
     try {
       const result = await client.query(
-        'UPDATE locatarios SET nome = $1, cpf = $2, rg = $3, estado_civil = $4, profissao = $5, endereco = $6, email = $7, telefone = $8 WHERE id = $9 RETURNING *',
-        [nome, cpf, rg, estado_civil, profissao, endereco, email, telefone, id]
+        'UPDATE locatarios SET nome = $1, cpf = $2, rg = $3, estado_civil = $4, profissao = $5, endereco = $6, email = $7, telefone = $8 WHERE id = $9 AND usuario_id = $10 RETURNING *',
+        [nome, cpf, rg, estado_civil, profissao, endereco, email, telefone, id, usuarioId]
       );
 
       if (result.rowCount === 0) {
@@ -988,10 +1015,14 @@ app.put('/locatarios/:id', authenticateToken, async (req, res) => {
 app.delete('/locatarios/:id', authenticateToken, async (req, res) => {
   try {
     const { id } = req.params;
+    const usuarioId = req.user?.userId;
 
     const client = await pool.connect();
     try {
-      const result = await client.query('DELETE FROM locatarios WHERE id = $1', [id]);
+      const result = await client.query(
+        'DELETE FROM locatarios WHERE id = $1 AND usuario_id = $2',
+        [id, usuarioId]
+      );
 
       if (result.rowCount === 0) {
         return res.status(404).json({
@@ -1018,13 +1049,17 @@ app.delete('/locatarios/:id', authenticateToken, async (req, res) => {
 
 // GET - Obter locatário por ID
 // Rota pública - não requer autenticação para visualizar
-app.get('/locatarios/:id', async (req, res) => {
+app.get('/locatarios/:id', authenticateToken, async (req, res) => {
   try {
     const { id } = req.params;
+    const usuarioId = req.user?.userId;
 
     const client = await pool.connect();
     try {
-      const result = await client.query('SELECT * FROM locatarios WHERE id = $1', [id]);
+      const result = await client.query(
+        'SELECT * FROM locatarios WHERE id = $1 AND usuario_id = $2',
+        [id, usuarioId]
+      );
 
       if (result.rowCount === 0) {
         return res.status(404).json({
@@ -1051,11 +1086,13 @@ app.get('/locatarios/:id', async (req, res) => {
 
 // GET - Listar todos os imóveis (com paginação)
 // Rota pública - não requer autenticação para listar
-app.get('/imoveis', async (req, res) => {
+app.get('/imoveis', authenticateToken, async (req, res) => {
   try {
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 50;
     const offset = (page - 1) * limit;
+
+    const usuarioId = req.user?.userId;
 
     // Validar limites
     const validLimit = Math.min(Math.max(limit, 1), 100); // Entre 1 e 100
@@ -1064,7 +1101,10 @@ app.get('/imoveis', async (req, res) => {
     const client = await pool.connect();
     try {
       // Contar total de registros
-      const countResult = await client.query('SELECT COUNT(*) FROM imoveis');
+      const countResult = await client.query(
+        'SELECT COUNT(*) FROM imoveis WHERE usuario_id = $1',
+        [usuarioId]
+      );
       const total = parseInt(countResult.rows[0].count);
 
       // Buscar registros paginados
@@ -1082,9 +1122,10 @@ app.get('/imoveis', async (req, res) => {
         FROM imoveis i
         LEFT JOIN locadores l ON i.id_locador = l.id
         LEFT JOIN locatarios lt ON i.id_locatario = lt.id
+        WHERE i.usuario_id = $1
         ORDER BY i.endereco
-        LIMIT $1 OFFSET $2
-      `, [validLimit, offset]);
+        LIMIT $2 OFFSET $3
+      `, [usuarioId, validLimit, offset]);
 
       res.json({
         success: true,
@@ -1169,13 +1210,17 @@ app.post('/imoveis', authenticateToken, strictLimiter, async (req, res) => {
       condominio_titular: condominio_titular ? sanitizeString(condominio_titular) : null,
       condominio_valor_estimado: condominio_valor_estimado || null,
       id_locador: parseInt(id_locador),
-      id_locatario: id_locatario ? parseInt(id_locatario) : null
+      id_locatario: id_locatario ? parseInt(id_locatario) : null,
+      usuario_id: usuarioId
     };
 
     const client = await pool.connect();
     try {
       // Verificar se locador existe
-      const locadorCheck = await client.query('SELECT id FROM locadores WHERE id = $1', [sanitizedData.id_locador]);
+      const locadorCheck = await client.query(
+        'SELECT id FROM locadores WHERE id = $1 AND usuario_id = $2',
+        [sanitizedData.id_locador, usuarioId]
+      );
       if (locadorCheck.rowCount === 0) {
         return res.status(400).json({
           success: false,
@@ -1185,7 +1230,10 @@ app.post('/imoveis', authenticateToken, strictLimiter, async (req, res) => {
 
       // Verificar se locatário existe (se fornecido)
       if (sanitizedData.id_locatario) {
-        const locatarioCheck = await client.query('SELECT id FROM locatarios WHERE id = $1', [sanitizedData.id_locatario]);
+        const locatarioCheck = await client.query(
+          'SELECT id FROM locatarios WHERE id = $1 AND usuario_id = $2',
+          [sanitizedData.id_locatario, usuarioId]
+        );
         if (locatarioCheck.rowCount === 0) {
           return res.status(400).json({
             success: false,
@@ -1200,9 +1248,9 @@ app.post('/imoveis', authenticateToken, strictLimiter, async (req, res) => {
           unidade_consumidora_numero, unidade_consumidora_titular, unidade_consumidora_cpf,
           saneago_numero_conta, saneago_titular, saneago_cpf,
           gas_numero_conta, gas_titular, gas_cpf,
-          condominio_titular, condominio_valor_estimado, id_locador, id_locatario
+          condominio_titular, condominio_valor_estimado, id_locador, id_locatario, usuario_id
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
         RETURNING *
       `, [
         sanitizedData.endereco, 
@@ -1221,7 +1269,8 @@ app.post('/imoveis', authenticateToken, strictLimiter, async (req, res) => {
         sanitizedData.condominio_titular, 
         sanitizedData.condominio_valor_estimado, 
         sanitizedData.id_locador, 
-        sanitizedData.id_locatario
+        sanitizedData.id_locatario,
+        sanitizedData.usuario_id
       ]);
 
       res.json({
@@ -1251,6 +1300,7 @@ app.put('/imoveis/:id', authenticateToken, async (req, res) => {
       gas_numero_conta, gas_titular, gas_cpf,
       condominio_titular, condominio_valor_estimado, id_locador, id_locatario
     } = req.body || {};
+    const usuarioId = req.user?.userId;
 
     const client = await pool.connect();
     try {
@@ -1261,14 +1311,14 @@ app.put('/imoveis/:id', authenticateToken, async (req, res) => {
           saneago_numero_conta = $8, saneago_titular = $9, saneago_cpf = $10,
           gas_numero_conta = $11, gas_titular = $12, gas_cpf = $13,
           condominio_titular = $14, condominio_valor_estimado = $15, id_locador = $16, id_locatario = $17
-        WHERE id = $18
+        WHERE id = $18 AND usuario_id = $19
         RETURNING *
       `, [
         endereco, tipo, descricao, cadastro_iptu,
         unidade_consumidora_numero, unidade_consumidora_titular, unidade_consumidora_cpf,
         saneago_numero_conta, saneago_titular, saneago_cpf,
         gas_numero_conta, gas_titular, gas_cpf,
-        condominio_titular, condominio_valor_estimado, id_locador, id_locatario, id
+        condominio_titular, condominio_valor_estimado, id_locador, id_locatario, id, usuarioId
       ]);
 
       if (result.rowCount === 0) {
@@ -1296,9 +1346,10 @@ app.put('/imoveis/:id', authenticateToken, async (req, res) => {
 
 // GET - Obter imóvel por ID
 // Rota pública - não requer autenticação para visualizar
-app.get('/imoveis/:id', async (req, res) => {
+app.get('/imoveis/:id', authenticateToken, async (req, res) => {
   try {
     const { id } = req.params;
+    const usuarioId = req.user?.userId;
 
     // Validar ID
     if (!id || isNaN(parseInt(id))) {
@@ -1324,8 +1375,8 @@ app.get('/imoveis/:id', async (req, res) => {
         FROM imoveis i
         LEFT JOIN locadores l ON i.id_locador = l.id
         LEFT JOIN locatarios lt ON i.id_locatario = lt.id
-        WHERE i.id = $1
-      `, [id]);
+        WHERE i.id = $1 AND i.usuario_id = $2
+      `, [id, usuarioId]);
 
       if (result.rowCount === 0) {
         return res.status(404).json({
@@ -1354,6 +1405,7 @@ app.get('/imoveis/:id', async (req, res) => {
 app.delete('/imoveis/:id', authenticateToken, async (req, res) => {
   try {
     const { id } = req.params;
+    const usuarioId = req.user?.userId;
 
     // Validar ID
     if (!id || isNaN(parseInt(id))) {
@@ -1366,7 +1418,10 @@ app.delete('/imoveis/:id', authenticateToken, async (req, res) => {
     const client = await pool.connect();
     try {
       // Verificar se imóvel existe
-      const checkResult = await client.query('SELECT id FROM imoveis WHERE id = $1', [id]);
+      const checkResult = await client.query(
+        'SELECT id FROM imoveis WHERE id = $1 AND usuario_id = $2',
+        [id, usuarioId]
+      );
       
       if (checkResult.rowCount === 0) {
         return res.status(404).json({
@@ -1376,13 +1431,13 @@ app.delete('/imoveis/:id', authenticateToken, async (req, res) => {
       }
 
       // Excluir imagens do imóvel primeiro (se existir)
-      await client.query('DELETE FROM imoveis_imagens WHERE id_imovel = $1', [id]);
       
       // Excluir arquivos físicos das imagens
       const imagensResult = await client.query(
         'SELECT caminho_imagem FROM imoveis_imagens WHERE id_imovel = $1',
         [id]
       );
+      await client.query('DELETE FROM imoveis_imagens WHERE id_imovel = $1', [id]);
       
       for (const imagem of imagensResult.rows) {
         const filePath = path.join(uploadsDir, path.basename(imagem.caminho_imagem));
@@ -1396,7 +1451,10 @@ app.delete('/imoveis/:id', authenticateToken, async (req, res) => {
       }
       
       // Excluir imóvel
-      const result = await client.query('DELETE FROM imoveis WHERE id = $1 RETURNING id, endereco', [id]);
+      const result = await client.query(
+        'DELETE FROM imoveis WHERE id = $1 AND usuario_id = $2 RETURNING id, endereco',
+        [id, usuarioId]
+      );
       
       res.json({
         success: true,
@@ -1419,13 +1477,23 @@ app.delete('/imoveis/:id', authenticateToken, async (req, res) => {
 });
 
 // GET - Estatísticas
-app.get('/estatisticas', async (req, res) => {
+app.get('/estatisticas', authenticateToken, async (req, res) => {
   try {
+    const usuarioId = req.user?.userId;
     const client = await pool.connect();
     try {
-      const locadoresResult = await client.query('SELECT COUNT(*) FROM locadores');
-      const locatariosResult = await client.query('SELECT COUNT(*) FROM locatarios');
-      const imoveisResult = await client.query('SELECT COUNT(*) FROM imoveis');
+      const locadoresResult = await client.query(
+        'SELECT COUNT(*) FROM locadores WHERE usuario_id = $1',
+        [usuarioId]
+      );
+      const locatariosResult = await client.query(
+        'SELECT COUNT(*) FROM locatarios WHERE usuario_id = $1',
+        [usuarioId]
+      );
+      const imoveisResult = await client.query(
+        'SELECT COUNT(*) FROM imoveis WHERE usuario_id = $1',
+        [usuarioId]
+      );
 
       res.json({
         success: true,
@@ -1447,27 +1515,11 @@ app.get('/estatisticas', async (req, res) => {
   }
 });
 
-// Middleware de tratamento de erros global
-app.use((error, req, res, next) => {
-  console.error('Erro não tratado:', error);
-  res.status(500).json({
-    success: false,
-    message: 'Erro interno no servidor',
-  });
-});
-
-// Middleware para rotas não encontradas
-app.use((req, res) => {
-  res.status(404).json({
-    success: false,
-    message: 'Rota não encontrada',
-  });
-});
-
 // POST - Upload de imagens para um imóvel (requer autenticação)
 app.post('/imoveis/:id/imagens', authenticateToken, upload.array('imagens', 20), async (req, res) => {
   try {
     const { id } = req.params;
+    const usuarioId = req.user?.userId;
     const files = req.files;
 
     if (!files || files.length === 0) {
@@ -1479,6 +1531,18 @@ app.post('/imoveis/:id/imagens', authenticateToken, upload.array('imagens', 20),
 
     const client = await pool.connect();
     try {
+      const imovelResult = await client.query(
+        'SELECT id FROM imoveis WHERE id = $1 AND usuario_id = $2',
+        [id, usuarioId]
+      );
+
+      if (imovelResult.rowCount === 0) {
+        return res.status(404).json({
+          success: false,
+          message: 'Imóvel não encontrado',
+        });
+      }
+
       const imagensSalvas = [];
 
       for (let i = 0; i < files.length; i++) {
@@ -1516,12 +1580,25 @@ app.post('/imoveis/:id/imagens', authenticateToken, upload.array('imagens', 20),
 
 // GET - Buscar imagens de um imóvel
 // Rota pública - não requer autenticação para visualizar
-app.get('/imoveis/:id/imagens', async (req, res) => {
+app.get('/imoveis/:id/imagens', authenticateToken, async (req, res) => {
   try {
     const { id } = req.params;
+    const usuarioId = req.user?.userId;
 
     const client = await pool.connect();
     try {
+      const imovelResult = await client.query(
+        'SELECT id FROM imoveis WHERE id = $1 AND usuario_id = $2',
+        [id, usuarioId]
+      );
+
+      if (imovelResult.rowCount === 0) {
+        return res.status(404).json({
+          success: false,
+          message: 'Imóvel não encontrado',
+        });
+      }
+
       const result = await client.query(`
         SELECT * FROM imoveis_imagens 
         WHERE id_imovel = $1 
@@ -1548,13 +1625,17 @@ app.get('/imoveis/:id/imagens', async (req, res) => {
 app.delete('/imoveis-imagens/:id', authenticateToken, async (req, res) => {
   try {
     const { id } = req.params;
+    const usuarioId = req.user?.userId;
 
     const client = await pool.connect();
     try {
       // Primeiro buscar o caminho da imagem para deletar o arquivo
       const imagemResult = await client.query(
-        'SELECT caminho_imagem FROM imoveis_imagens WHERE id = $1',
-        [id]
+        `SELECT ii.caminho_imagem
+         FROM imoveis_imagens ii
+         INNER JOIN imoveis i ON i.id = ii.id_imovel
+         WHERE ii.id = $1 AND i.usuario_id = $2`,
+        [id, usuarioId]
       );
 
       if (imagemResult.rows.length === 0) {
@@ -1589,6 +1670,23 @@ app.delete('/imoveis-imagens/:id', authenticateToken, async (req, res) => {
       message: 'Erro ao remover imagem',
     });
   }
+});
+
+// Middleware de tratamento de erros global
+app.use((error, req, res, next) => {
+  console.error('Erro não tratado:', error);
+  res.status(500).json({
+    success: false,
+    message: 'Erro interno no servidor',
+  });
+});
+
+// Middleware para rotas não encontradas
+app.use((req, res) => {
+  res.status(404).json({
+    success: false,
+    message: 'Rota não encontrada',
+  });
 });
 
 app.listen(PORT, '0.0.0.0', () => {

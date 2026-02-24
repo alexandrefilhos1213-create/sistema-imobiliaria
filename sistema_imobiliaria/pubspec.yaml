@@ -38,6 +38,7 @@ dependencies:
   # Para conexão com o PostgreSQL (Neon)
   postgres: ^3.0.1
   http: ^1.1.0
+  http_parser: ^4.1.2
   
   # Para gerenciar variáveis de ambiente
   flutter_dotenv: ^5.1.0

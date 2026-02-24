@@ -2,10 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:sistema_imobiliaria/services/database_service.dart';
+import 'package:sistema_imobiliaria/services/image_service.dart';
 import 'package:sistema_imobiliaria/screens/user_hub_screen.dart';
-import 'dart:io';
-import 'package:flutter/foundation.dart';
-import 'dart:convert';
 
 class AddImovelScreen extends StatefulWidget {
   const AddImovelScreen({super.key});
@@ -196,44 +194,18 @@ class _AddImovelScreenState extends State<AddImovelScreen> {
     }
 
     try {
-      XFile? imagem;
-      
-      if (kIsWeb) {
-        // Para web, mostrar mensagem temporária
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Funcionalidade de imagens em desenvolvimento para web'),
-            backgroundColor: Colors.orange,
-            duration: Duration(seconds: 3),
-          ),
-        );
-        return;
-      } else if (Platform.isAndroid || Platform.isIOS) {
-        // Para móveis, usar image_picker
-        imagem = await _imagePicker.pickImage(
-          source: ImageSource.gallery,
-          imageQuality: 80,
-        );
-      } else {
-        // Para outras plataformas (Windows/Linux), mostrar mensagem
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Funcionalidade de imagens disponível apenas em dispositivos móveis'),
-            backgroundColor: Colors.orange,
-            duration: Duration(seconds: 3),
-          ),
-        );
-        return;
-      }
-      
-      if (imagem != null) {
+      final restante = 20 - _imagens.length;
+      final imagensSelecionadas = await _imagePicker.pickMultiImage(imageQuality: 80);
+
+      if (imagensSelecionadas.isNotEmpty) {
+        final imagensParaAdicionar = imagensSelecionadas.take(restante).toList();
         setState(() {
-          _imagens.add(imagem!);
+          _imagens.addAll(imagensParaAdicionar);
         });
         
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Imagem adicionada com sucesso!'),
+          SnackBar(
+            content: Text('${imagensParaAdicionar.length} imagem(ns) adicionada(s)!'),
             backgroundColor: Colors.green,
           ),
         );
@@ -259,27 +231,6 @@ class _AddImovelScreenState extends State<AddImovelScreen> {
           duration: const Duration(seconds: 3),
         ),
       );
-    }
-  }
-
-  // Converter Data URL para bytes
-  Uint8List? _dataUrlToBytes(String dataUrl) {
-    try {
-      // Remover o prefixo "data:image/...;base64,"
-      final headerIndex = dataUrl.indexOf(',');
-      if (headerIndex == -1) return null;
-      
-      final header = dataUrl.substring(0, headerIndex);
-      final data = dataUrl.substring(headerIndex + 1);
-      
-      // Verificar se é base64
-      if (!header.contains('base64')) return null;
-      
-      // Decodificar base64
-      final decodedBytes = const Base64Decoder().convert(data);
-      return decodedBytes;
-    } catch (e) {
-      return null;
     }
   }
 
@@ -352,9 +303,20 @@ class _AddImovelScreenState extends State<AddImovelScreen> {
                       ),
                       child: ClipRRect(
                         borderRadius: BorderRadius.circular(8),
-                        child: kIsWeb
-                          ? Image.network(
-                              _imagens[index].path,
+                        child: FutureBuilder<Uint8List>(
+                          future: _imagens[index].readAsBytes(),
+                          builder: (context, snapshot) {
+                            if (!snapshot.hasData) {
+                              return Container(
+                                color: const Color(0xFF4A5568),
+                                child: const Center(
+                                  child: CircularProgressIndicator(strokeWidth: 2),
+                                ),
+                              );
+                            }
+
+                            return Image.memory(
+                              snapshot.data!,
                               fit: BoxFit.contain,
                               alignment: Alignment.center,
                               errorBuilder: (context, error, stackTrace) {
@@ -367,22 +329,9 @@ class _AddImovelScreenState extends State<AddImovelScreen> {
                                   ),
                                 );
                               },
-                            )
-                          : Image.file(
-                              File(_imagens[index].path),
-                              fit: BoxFit.contain,
-                              alignment: Alignment.center,
-                              errorBuilder: (context, error, stackTrace) {
-                                return Container(
-                                  color: const Color(0xFF4A5568),
-                                  child: const Icon(
-                                    Icons.broken_image,
-                                    color: Color(0xFF9CA3AF),
-                                    size: 40,
-                                  ),
-                                );
-                              },
-                            ),
+                            );
+                          },
+                        ),
                       ),
                     ),
                     Positioned(
@@ -940,13 +889,38 @@ class _AddImovelScreenState extends State<AddImovelScreen> {
                 };
 
                 final result = await DatabaseService.addImovel(imovelData);
+                final int? idImovelCriado = result['data']?['id'] is int
+                    ? result['data']['id'] as int
+                    : int.tryParse('${result['data']?['id'] ?? ''}');
+
+                if (idImovelCriado == null) {
+                  throw Exception('Imóvel criado sem ID válido para upload de imagens.');
+                }
+
+                String? avisoUpload;
+                if (_imagens.isNotEmpty) {
+                  final uploadResult = await ImageService.uploadImagens(idImovelCriado, _imagens);
+                  if (uploadResult['success'] != true) {
+                    avisoUpload = uploadResult['message']?.toString() ??
+                        'Não foi possível enviar as imagens.';
+                  }
+                }
+
+                // Fechar loading
+                if (mounted) {
+                  Navigator.of(context, rootNavigator: true).pop();
+                }
                 
                 // Imóvel salvo com sucesso
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
-                    content: Text('Imóvel salvo com sucesso!'),
-                    backgroundColor: const Color(0xFF3B82F6),
-                    duration: const Duration(seconds: 2),
+                    content: Text(
+                      avisoUpload == null
+                          ? 'Imóvel salvo com sucesso!'
+                          : 'Imóvel salvo, mas houve falha no upload das imagens: $avisoUpload',
+                    ),
+                    backgroundColor: avisoUpload == null ? const Color(0xFF3B82F6) : Colors.orange,
+                    duration: const Duration(seconds: 3),
                   ),
                 );
                 
@@ -957,7 +931,9 @@ class _AddImovelScreenState extends State<AddImovelScreen> {
                 Navigator.pop(context);
               } catch (e) {
                 // Fechar loading
-                Navigator.pop(context);
+                if (mounted) {
+                  Navigator.of(context, rootNavigator: true).pop();
+                }
                 
                 // Mostrar mensagem de erro
                 ScaffoldMessenger.of(context).showSnackBar(

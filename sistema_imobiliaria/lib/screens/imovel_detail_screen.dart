@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:sistema_imobiliaria/services/database_service.dart';
+import 'package:sistema_imobiliaria/services/image_service.dart';
 import 'package:sistema_imobiliaria/screens/user_hub_screen.dart';
 import 'package:sistema_imobiliaria/screens/edit_imovel_screen.dart';
 import 'dart:convert';
@@ -19,6 +20,8 @@ class ImovelDetailScreen extends StatefulWidget {
 class _ImovelDetailScreenState extends State<ImovelDetailScreen> {
   final ImagePicker _imagePicker = ImagePicker();
   List<XFile> _imagens = [];
+  List<Map<String, dynamic>> _imagensServidor = [];
+  bool _carregandoImagens = false;
 
   // Getter para acessar o imovel do widget
   Map<String, dynamic> get imovel => widget.imovel;
@@ -31,12 +34,44 @@ class _ImovelDetailScreenState extends State<ImovelDetailScreen> {
     _carregarImagensExistentes();
   }
 
-  void _carregarImagensExistentes() {
+  Future<void> _carregarImagensExistentes() async {
     // Aqui você pode carregar imagens existentes do banco
     // Por enquanto, vamos iniciar com lista vazia
+    final idImovel = int.tryParse('${imovel['id'] ?? ''}');
+    if (idImovel == null) return;
+
     setState(() {
-      _imagens = [];
+      _carregandoImagens = true;
     });
+
+    try {
+      final result = await ImageService.getImagens(idImovel);
+      if (!mounted) return;
+
+      if (result['success'] == true) {
+        final data = (result['data'] as List?) ?? [];
+        setState(() {
+          _imagensServidor = data
+              .map((item) => Map<String, dynamic>.from(item as Map))
+              .toList();
+        });
+      } else {
+        setState(() {
+          _imagensServidor = [];
+        });
+      }
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _imagensServidor = [];
+      });
+    } finally {
+      if (mounted) {
+        setState(() {
+          _carregandoImagens = false;
+        });
+      }
+    }
   }
 
   Future<void> _adicionarImagem() async {
@@ -155,7 +190,14 @@ class _ImovelDetailScreenState extends State<ImovelDetailScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        if (_imagens.isNotEmpty)
+        if (_carregandoImagens)
+          const SizedBox(
+            height: 120,
+            child: Center(
+              child: CircularProgressIndicator(),
+            ),
+          )
+        else if (_imagensServidor.isNotEmpty)
           Container(
             constraints: const BoxConstraints(maxHeight: 400),
             child: GridView.builder(
@@ -167,8 +209,12 @@ class _ImovelDetailScreenState extends State<ImovelDetailScreen> {
                 mainAxisSpacing: 12,
                 childAspectRatio: 1.0,
               ),
-              itemCount: _imagens.length,
+              itemCount: _imagensServidor.length,
               itemBuilder: (context, index) {
+                final imagem = _imagensServidor[index];
+                final imageUrl = ImageService.buildImageUrl(
+                  '${imagem['caminho_imagem'] ?? ''}',
+                );
                 return GestureDetector(
                   onTap: () {
                     // TODO: Implementar visualização ampliada
@@ -192,38 +238,23 @@ class _ImovelDetailScreenState extends State<ImovelDetailScreen> {
                       borderRadius: BorderRadius.circular(12),
                       child: Stack(
                         children: [
-                          Container(
+                          SizedBox(
                             width: double.infinity,
                             height: double.infinity,
-                            child: kIsWeb
-                              ? Image.network(
-                                  _imagens[index].path,
-                                  fit: BoxFit.cover,
-                                  errorBuilder: (context, error, stackTrace) {
-                                    return Container(
-                                      color: Colors.grey.withOpacity(0.2),
-                                      child: const Icon(
-                                        Icons.broken_image,
-                                        color: Colors.white54,
-                                        size: 32,
-                                      ),
-                                    );
-                                  },
-                                )
-                              : Image.file(
-                                  File(_imagens[index].path),
-                                  fit: BoxFit.cover,
-                                  errorBuilder: (context, error, stackTrace) {
-                                    return Container(
-                                      color: Colors.grey.withOpacity(0.2),
-                                      child: const Icon(
-                                        Icons.broken_image,
-                                        color: Colors.white54,
-                                        size: 32,
-                                      ),
-                                    );
-                                  },
-                                ),
+                            child: Image.network(
+                              imageUrl,
+                              fit: BoxFit.cover,
+                              errorBuilder: (context, error, stackTrace) {
+                                return Container(
+                                  color: Colors.grey.withOpacity(0.2),
+                                  child: const Icon(
+                                    Icons.broken_image,
+                                    color: Colors.white54,
+                                    size: 32,
+                                  ),
+                                );
+                              },
+                            ),
                           ),
                           // Overlay sutil
                           Positioned(

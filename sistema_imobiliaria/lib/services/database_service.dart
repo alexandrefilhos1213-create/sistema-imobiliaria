@@ -66,13 +66,12 @@ class DatabaseService {
 
       http.Response response;
       
-      // Obter token de autenticação (se disponível)
-      final token = AuthService.getTokenSync();
+      // Obter token de autenticação (usa memória e fallback em storage)
+      final token = await AuthService.getToken();
       
       final headers = <String, String>{
         'Content-Type': 'application/json',
         'Accept': 'application/json',
-        'Access-Control-Allow-Origin': '*',
       };
       
       // Adicionar token se disponível
@@ -81,10 +80,13 @@ class DatabaseService {
       }
       
       // Adicionar usuario_id automaticamente se tivermos um usuário logado
-      if (body != null && token != null) {
+      final Map<String, dynamic>? requestBody =
+          body != null ? Map<String, dynamic>.from(body) : null;
+
+      if (requestBody != null && token != null) {
         final userId = await AuthService.getCurrentUserId();
         if (userId != null) {
-          body['usuario_id'] = userId;
+          requestBody['usuario_id'] = userId;
           _logger.d('[$requestId] Adicionado usuario_id: $userId');
         }
       }
@@ -99,7 +101,7 @@ class DatabaseService {
           response = await http.post(
             uri,
             headers: headers,
-            body: jsonEncode(body),
+            body: jsonEncode(requestBody),
           ).timeout(const Duration(seconds: 15));
           break;
           
@@ -107,7 +109,7 @@ class DatabaseService {
           response = await http.put(
             uri,
             headers: headers,
-            body: jsonEncode(body),
+            body: jsonEncode(requestBody),
           ).timeout(const Duration(seconds: 15));
           break;
           
@@ -191,12 +193,7 @@ class DatabaseService {
       _logger.i('Locador adicionado: ${locador['name'] ?? locador['nome'] ?? 'Sem nome'}');
     } catch (e, stackTrace) {
       _logger.e('Erro ao adicionar locador', error: e, stackTrace: stackTrace);
-      
-      // Fallback para modo local
-      locador['id'] = DateTime.now().millisecondsSinceEpoch.toString();
-      locador['createdAt'] = DateTime.now().toIso8601String();
-      _locadores.add(locador);
-      _logger.i('Locador adicionado localmente: ${locador['name'] ?? locador['nome'] ?? 'Sem nome'}');
+      rethrow;
     }
   }
   
@@ -227,12 +224,8 @@ class DatabaseService {
       
       _logger.i('Locatário adicionado com sucesso: ${locatario['nome']}');
     } catch (e, stackTrace) {
-      // Fallback para modo local
-      locatario['id'] = DateTime.now().millisecondsSinceEpoch.toString();
-      locatario['createdAt'] = DateTime.now().toIso8601String();
-      _locatarios.add(locatario);
-      _logger.e('Erro ao adicionar locatário; usando fallback local', error: e, stackTrace: stackTrace);
-      _logger.i('Locatário adicionado localmente (fallback): ${locatario['nome']}');
+      _logger.e('Erro ao adicionar locatário', error: e, stackTrace: stackTrace);
+      rethrow;
     }
   }
 
@@ -254,18 +247,9 @@ class DatabaseService {
         'success': true,
         'data': response['data'],
       };
-    } catch (e) {
-      // Fallback para modo local
-      imovel['id'] = DateTime.now().millisecondsSinceEpoch.toString();
-      imovel['createdAt'] = DateTime.now().toIso8601String();
-      _imoveis.add(imovel);
-      _logger.e('Erro ao adicionar imóvel; usando fallback local', error: e);
-      _logger.i('Imóvel adicionado localmente: ${imovel['endereco']}');
-      
-      return {
-        'success': true,
-        'data': imovel,
-      };
+    } catch (e, stackTrace) {
+      _logger.e('Erro ao adicionar imóvel', error: e, stackTrace: stackTrace);
+      rethrow;
     }
   }
 
