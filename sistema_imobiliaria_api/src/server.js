@@ -344,13 +344,39 @@ app.post('/login', async (req, res) => {
     const client = await pool.connect();
     try {
       // Buscar usuário - apenas senha_hash (sistema novo)
+      const schemaResult = await client.query(
+        `SELECT column_name
+           FROM information_schema.columns
+          WHERE table_name = $1`,
+        [USERS_TABLE]
+      );
+
+      const tableColumns = new Set(schemaResult.rows.map((row) => row.column_name));
+      const effectiveLoginField = tableColumns.has(USER_LOGIN_FIELD)
+        ? USER_LOGIN_FIELD
+        : (tableColumns.has('email') ? 'email' : USER_LOGIN_FIELD);
+      const hasSenhaHash = tableColumns.has('senha_hash');
+      const hasSenha = tableColumns.has('senha');
+
+      if (!hasSenhaHash && !hasSenha) {
+        console.error('Tabela de usuÃ¡rios sem coluna de senha suportada:', {
+          usersTable: USERS_TABLE,
+          availableColumns: [...tableColumns],
+        });
+        return res.status(500).json({
+          success: false,
+          message: 'ConfiguraÃ§Ã£o de autenticaÃ§Ã£o invÃ¡lida no servidor.',
+        });
+      }
+
       const queryText = `SELECT 
                           id, 
                           nome, 
-                          ${USER_LOGIN_FIELD} AS login, 
-                          senha_hash
+                          ${effectiveLoginField} AS login, 
+                          ${hasSenhaHash ? 'senha_hash' : 'NULL::text AS senha_hash'},
+                          ${hasSenha ? 'senha' : 'NULL::text AS senha'}
                          FROM ${USERS_TABLE}
-                         WHERE ${USER_LOGIN_FIELD} = $1
+                         WHERE ${effectiveLoginField} = $1
                          LIMIT 1`;
 
       const result = await client.query(queryText, [loginValue]);
@@ -372,7 +398,7 @@ app.post('/login', async (req, res) => {
         temHash: !!usuarioDB.senha_hash
       });
 
-      // Sistema novo: sempre usar bcrypt
+      // Preferir senha_hash (schema atual)
       if (usuarioDB.senha_hash) {
         try {
           console.log('COMPARANDO SENHA COM BCRYPT...');
@@ -384,6 +410,16 @@ app.post('/login', async (req, res) => {
             success: false,
             message: 'Erro ao validar credenciais.',
           });
+        }
+      } else if (usuarioDB.senha) {
+        // Fallback para banco legado: pode estar em texto puro ou hash em coluna antiga.
+        try {
+          senhaValida = await bcrypt.compare(senha, usuarioDB.senha);
+        } catch (_) {
+          senhaValida = false;
+        }
+        if (!senhaValida) {
+          senhaValida = senha === usuarioDB.senha;
         }
       } else {
         console.log('❌ USUÁRIO SEM SENHA_HASH!');
