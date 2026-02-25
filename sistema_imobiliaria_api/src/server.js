@@ -147,9 +147,16 @@ function normalizeDatabaseUrl(rawUrl) {
       const fixedHost = parsedUrl.hostname.replace(/aws\.neon\.te$/, 'aws.neon.tech');
       console.warn(`DATABASE_URL host corrigido automaticamente: ${parsedUrl.hostname} -> ${fixedHost}`);
       parsedUrl.hostname = fixedHost;
-      return parsedUrl.toString();
     }
-    return rawUrl;
+
+    const dbNameFromPath = parsedUrl.pathname?.replace(/^\/+/, '') || '';
+    if (!dbNameFromPath) {
+      const fallbackDbName = (DB_DATABASE && DB_DATABASE.trim()) || 'neondb';
+      parsedUrl.pathname = `/${fallbackDbName}`;
+      console.warn(`DATABASE_URL sem nome de database. Usando fallback: ${fallbackDbName}`);
+    }
+
+    return parsedUrl.toString();
   } catch (error) {
     console.error('DATABASE_URL inválida:', error.message);
     return rawUrl;
