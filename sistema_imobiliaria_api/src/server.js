@@ -138,10 +138,29 @@ if (!DB_HOST || !DB_USER || !DB_DATABASE) {
 
 let poolConfig;
 
+function normalizeDatabaseUrl(rawUrl) {
+  if (!rawUrl) return rawUrl;
+
+  try {
+    const parsedUrl = new URL(rawUrl);
+    if (parsedUrl.hostname.endsWith('aws.neon.te')) {
+      const fixedHost = parsedUrl.hostname.replace(/aws\.neon\.te$/, 'aws.neon.tech');
+      console.warn(`DATABASE_URL host corrigido automaticamente: ${parsedUrl.hostname} -> ${fixedHost}`);
+      parsedUrl.hostname = fixedHost;
+      return parsedUrl.toString();
+    }
+    return rawUrl;
+  } catch (error) {
+    console.error('DATABASE_URL inválida:', error.message);
+    return rawUrl;
+  }
+}
+
 if (DATABASE_URL) {
+  const effectiveDatabaseUrl = normalizeDatabaseUrl(DATABASE_URL);
   // Usa URL completa (como Neon) se estiver disponível
   poolConfig = {
-    connectionString: DATABASE_URL,
+    connectionString: effectiveDatabaseUrl,
     ssl: process.env.NODE_ENV === 'production' ? {
       rejectUnauthorized: false,
     } : false, // Desabilitar SSL em desenvolvimento
